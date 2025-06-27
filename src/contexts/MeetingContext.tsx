@@ -1,14 +1,13 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
-import type { Meeting, Transcription, MeetingCreate, CreateMeetingForm, MeetingWithTranscriptions, PaginatedMeetingsResponse } from '@/types';
+import type { ReactNode } from 'react';
+import type { Meeting, Transcription, MeetingCreate, CreateMeetingForm, MeetingWithTranscriptions, PaginatedMeetingsResponse, DashboardStats } from '@/types';
 import { MeetingService } from '@/services/meetings';
 import { TranscriptionService } from '@/services/transcriptions';
 
 interface MeetingState {
-  meetings: Meeting[];
-  meetingsWithTranscriptions: MeetingWithTranscriptions[];
+  meetings: MeetingWithTranscriptions[];
   paginatedMeetings: PaginatedMeetingsResponse | null;
-  currentMeeting: Meeting | null;
-  transcriptions: { [meetingId: string]: Transcription };
+  dashboardStats: DashboardStats | null;
   loading: boolean;
   error: string | null;
 }
@@ -16,21 +15,17 @@ interface MeetingState {
 type MeetingAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
-  | { type: 'SET_MEETINGS'; payload: Meeting[] }
-  | { type: 'SET_MEETINGS_WITH_TRANSCRIPTIONS'; payload: MeetingWithTranscriptions[] }
+  | { type: 'SET_MEETINGS'; payload: MeetingWithTranscriptions[] }
   | { type: 'SET_PAGINATED_MEETINGS'; payload: PaginatedMeetingsResponse }
-  | { type: 'ADD_MEETING'; payload: Meeting }
-  | { type: 'UPDATE_MEETING'; payload: Meeting }
-  | { type: 'DELETE_MEETING'; payload: string }
-  | { type: 'SET_CURRENT_MEETING'; payload: Meeting | null }
-  | { type: 'SET_TRANSCRIPTION'; payload: { meetingId: string; transcription: Transcription } };
+  | { type: 'SET_DASHBOARD_STATS'; payload: DashboardStats }
+  | { type: 'ADD_MEETING'; payload: MeetingWithTranscriptions }
+  | { type: 'UPDATE_MEETING'; payload: MeetingWithTranscriptions }
+  | { type: 'DELETE_MEETING'; payload: number };
 
 const initialState: MeetingState = {
   meetings: [],
-  meetingsWithTranscriptions: [],
   paginatedMeetings: null,
-  currentMeeting: null,
-  transcriptions: {},
+  dashboardStats: null,
   loading: false,
   error: null,
 };
@@ -42,48 +37,33 @@ function meetingReducer(state: MeetingState, action: MeetingAction): MeetingStat
     case 'SET_ERROR':
       return { ...state, error: action.payload, loading: false };
     case 'SET_MEETINGS':
-      return { ...state, meetings: action.payload };
-    case 'SET_MEETINGS_WITH_TRANSCRIPTIONS':
-      return { ...state, meetingsWithTranscriptions: action.payload };
+      return { ...state, meetings: action.payload, loading: false, error: null };
     case 'SET_PAGINATED_MEETINGS':
-      return { ...state, paginatedMeetings: action.payload };
+      return { ...state, paginatedMeetings: action.payload, loading: false, error: null };
+    case 'SET_DASHBOARD_STATS':
+      return { ...state, dashboardStats: action.payload, loading: false, error: null };
     case 'ADD_MEETING':
-      return { ...state, meetings: [...state.meetings, action.payload] };
+      return {
+        ...state,
+        meetings: [action.payload, ...state.meetings],
+        loading: false,
+        error: null
+      };
     case 'UPDATE_MEETING':
       return {
         ...state,
         meetings: state.meetings.map(meeting =>
           meeting.id === action.payload.id ? action.payload : meeting
         ),
-        currentMeeting: state.currentMeeting?.id === action.payload.id
-          ? action.payload
-          : state.currentMeeting,
+        loading: false,
+        error: null
       };
     case 'DELETE_MEETING':
       return {
         ...state,
         meetings: state.meetings.filter(meeting => meeting.id !== action.payload),
-        currentMeeting: state.currentMeeting?.id === action.payload
-          ? null
-          : state.currentMeeting,
-      };
-    case 'SET_CURRENT_MEETING':
-      return { ...state, currentMeeting: action.payload };
-    case 'SET_TRANSCRIPTION':
-      return {
-        ...state,
-        transcriptions: {
-          ...state.transcriptions,
-          [action.payload.meetingId]: action.payload.transcription
-        },
-        meetings: state.meetings.map(meeting =>
-          meeting.id === action.payload.meetingId
-            ? { ...meeting, status: 'completed' }
-            : meeting
-        ),
-        currentMeeting: state.currentMeeting?.id === action.payload.meetingId
-          ? { ...state.currentMeeting, status: 'completed' }
-          : state.currentMeeting,
+        loading: false,
+        error: null
       };
     default:
       return state;
@@ -92,17 +72,16 @@ function meetingReducer(state: MeetingState, action: MeetingAction): MeetingStat
 
 interface MeetingContextType {
   state: MeetingState;
-  dispatch: React.Dispatch<MeetingAction>;
-  // Actions
-  loadAllMeetings: () => Promise<void>;
+  loadMeetings: () => Promise<void>;
   loadMeetingsPaginated: (page: number, pageSize: number) => Promise<void>;
-  createMeeting: (meeting: CreateMeetingForm) => Promise<Meeting>;
-  loadMeeting: (meetingId: string) => Promise<Meeting>;
-  updateMeeting: (meeting: Meeting) => void;
-  deleteMeeting: (id: string) => void;
-  transcribeMeeting: (meetingId: string, audioFile?: File) => Promise<void>;
-  generateSummary: (meetingId: string) => Promise<void>;
-  loadTranscription: (meetingId: string) => Promise<Transcription>;
+  loadDashboardStats: (days?: number) => Promise<void>;
+  createMeeting: (formData: { title: string; description?: string; participants: string[] }) => Promise<MeetingWithTranscriptions>;
+  uploadAudioToMeeting: (meetingId: string, audioFile: File, onProgress?: (progress: number) => void) => Promise<void>;
+  addMeeting: (meeting: MeetingWithTranscriptions) => void;
+  updateMeeting: (meeting: MeetingWithTranscriptions) => void;
+  deleteMeeting: (meetingId: number) => void;
+  setError: (error: string | null) => void;
+  setLoading: (loading: boolean) => void;
 }
 
 const MeetingContext = createContext<MeetingContextType | undefined>(undefined);
@@ -116,19 +95,19 @@ export const useMeeting = () => {
 };
 
 interface MeetingProviderProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(meetingReducer, initialState);
 
-  const loadAllMeetings = useCallback(async (): Promise<void> => {
+  const loadMeetings = useCallback(async (): Promise<void> => {
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
       const meetings = await MeetingService.getAllMeetingsWithTranscriptions();
-      dispatch({ type: 'SET_MEETINGS_WITH_TRANSCRIPTIONS', payload: meetings });
+      dispatch({ type: 'SET_MEETINGS', payload: meetings });
     } catch (error: any) {
       const errorMessage = error.message || 'Erro ao carregar reuniões';
       dispatch({ type: 'SET_ERROR', payload: errorMessage });
@@ -154,22 +133,77 @@ export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) =>
     }
   }, []);
 
-  const createMeeting = useCallback(async (formData: CreateMeetingForm): Promise<Meeting> => {
+  const loadDashboardStats = useCallback(async (days: number = 30): Promise<void> => {
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
-      const meetingData = MeetingService.formatMeetingForAPI(formData);
-      const meeting = await MeetingService.createMeeting(meetingData);
+      const stats = await MeetingService.getDashboardStats(days);
+      dispatch({ type: 'SET_DASHBOARD_STATS', payload: stats });
+    } catch (error: any) {
+      const errorMessage = error.message || 'Erro ao carregar estatísticas';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+      throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, []);
 
-      dispatch({ type: 'ADD_MEETING', payload: meeting });
+  const addMeeting = useCallback((meeting: MeetingWithTranscriptions) => {
+    dispatch({ type: 'ADD_MEETING', payload: meeting });
+  }, []);
 
-      // Se há arquivo de áudio, fazer upload
-      if (formData.audioFile) {
-        await transcribeMeeting(meeting.id, formData.audioFile);
-      }
+  const updateMeeting = useCallback((meeting: MeetingWithTranscriptions) => {
+    dispatch({ type: 'UPDATE_MEETING', payload: meeting });
+  }, []);
 
-      return meeting;
+  const deleteMeeting = useCallback((meetingId: number) => {
+    dispatch({ type: 'DELETE_MEETING', payload: meetingId });
+  }, []);
+
+  const setError = useCallback((error: string | null) => {
+    dispatch({ type: 'SET_ERROR', payload: error });
+  }, []);
+
+  const setLoading = useCallback((loading: boolean) => {
+    dispatch({ type: 'SET_LOADING', payload: loading });
+  }, []);
+
+  const createMeeting = useCallback(async (formData: {
+    title: string;
+    description?: string;
+    participants: string[];
+  }): Promise<MeetingWithTranscriptions> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
+
+    try {
+      // Criar a reunião básica
+      const meetingData: MeetingCreate = {
+        title: formData.title,
+        description: formData.description || '',
+        date: new Date().toISOString(),
+        participants: formData.participants,
+      };
+
+      const createdMeeting = await MeetingService.createMeeting(meetingData);
+
+      // Criar um objeto compatível MeetingWithTranscriptions
+      const newMeeting: MeetingWithTranscriptions = {
+        id: parseInt(createdMeeting.id),
+        title: createdMeeting.title,
+        description: createdMeeting.description,
+        date: createdMeeting.date,
+        participants: createdMeeting.participants,
+        created_at: createdMeeting.created_at,
+        updated_at: createdMeeting.updated_at,
+        has_transcription: false,
+        has_summary: false,
+        transcriptions: []
+      };
+
+      dispatch({ type: 'ADD_MEETING', payload: newMeeting });
+      return newMeeting;
     } catch (error: any) {
       const errorMessage = error.message || 'Erro ao criar reunião';
       dispatch({ type: 'SET_ERROR', payload: errorMessage });
@@ -179,16 +213,23 @@ export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) =>
     }
   }, []);
 
-  const loadMeeting = useCallback(async (meetingId: string): Promise<Meeting> => {
+  const uploadAudioToMeeting = useCallback(async (
+    meetingId: string,
+    audioFile: File,
+    onProgress?: (progress: number) => void
+  ): Promise<void> => {
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
-      const meeting = await MeetingService.getMeeting(meetingId);
-      dispatch({ type: 'SET_CURRENT_MEETING', payload: meeting });
-      return meeting;
+      // Usar o serviço de transcrições para enviar para /api/transcriptions/transcribe
+      await TranscriptionService.transcribeMeeting(meetingId, audioFile, onProgress);
+
+      // Após o upload, atualizar a lista de reuniões para refletir as mudanças
+      const updatedMeetings = await MeetingService.getAllMeetingsWithTranscriptions();
+      dispatch({ type: 'SET_MEETINGS', payload: updatedMeetings });
     } catch (error: any) {
-      const errorMessage = error.message || 'Erro ao carregar reunião';
+      const errorMessage = error.message || 'Erro ao fazer upload do áudio';
       dispatch({ type: 'SET_ERROR', payload: errorMessage });
       throw error;
     } finally {
@@ -196,109 +237,31 @@ export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) =>
     }
   }, []);
 
-  const updateMeeting = useCallback((meeting: Meeting) => {
-    dispatch({ type: 'UPDATE_MEETING', payload: meeting });
-  }, []);
-
-  const deleteMeeting = useCallback((id: string) => {
-    dispatch({ type: 'DELETE_MEETING', payload: id });
-  }, []);
-
-  const transcribeMeeting = useCallback(async (meetingId: string, audioFile?: File): Promise<void> => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    dispatch({ type: 'SET_ERROR', payload: null });
-
-    try {
-      // Atualizar status da reunião para processamento
-      const currentMeeting = state.meetings.find(m => m.id === meetingId);
-      if (currentMeeting) {
-        dispatch({
-          type: 'UPDATE_MEETING',
-          payload: { ...currentMeeting, status: 'processing' }
-        });
-      }
-
-      await TranscriptionService.transcribeMeeting(meetingId, audioFile);
-
-      // Verificar status e carregar transcrição quando completar
-      // Em uma implementação real, você poderia usar WebSockets ou polling
-      setTimeout(async () => {
-        try {
-          const transcription = await TranscriptionService.getTranscription(meetingId);
-          dispatch({
-            type: 'SET_TRANSCRIPTION',
-            payload: { meetingId, transcription }
-          });
-        } catch (error) {
-          // Transcrição ainda não está pronta
-        }
-      }, 5000);
-
-    } catch (error: any) {
-      const errorMessage = error.message || 'Erro ao processar transcrição';
-      dispatch({ type: 'SET_ERROR', payload: errorMessage });
-      throw error;
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, [state.meetings]);
-
-  const generateSummary = useCallback(async (meetingId: string): Promise<void> => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    dispatch({ type: 'SET_ERROR', payload: null });
-
-    try {
-      const transcription = await TranscriptionService.generateSummary(meetingId);
-      dispatch({
-        type: 'SET_TRANSCRIPTION',
-        payload: { meetingId, transcription }
-      });
-    } catch (error: any) {
-      const errorMessage = error.message || 'Erro ao gerar resumo';
-      dispatch({ type: 'SET_ERROR', payload: errorMessage });
-      throw error;
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, []);
-
-  const loadTranscription = useCallback(async (meetingId: string): Promise<Transcription> => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    dispatch({ type: 'SET_ERROR', payload: null });
-
-    try {
-      const transcription = await TranscriptionService.getTranscription(meetingId);
-      dispatch({
-        type: 'SET_TRANSCRIPTION',
-        payload: { meetingId, transcription }
-      });
-      return transcription;
-    } catch (error: any) {
-      const errorMessage = error.message || 'Erro ao carregar transcrição';
-      dispatch({ type: 'SET_ERROR', payload: errorMessage });
-      throw error;
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, []);
+  const value: MeetingContextType = {
+    state,
+    loadMeetings,
+    loadMeetingsPaginated,
+    loadDashboardStats,
+    createMeeting,
+    uploadAudioToMeeting,
+    addMeeting,
+    updateMeeting,
+    deleteMeeting,
+    setError,
+    setLoading,
+  };
 
   return (
-    <MeetingContext.Provider
-      value={{
-        state,
-        dispatch,
-        loadAllMeetings,
-        loadMeetingsPaginated,
-        createMeeting,
-        loadMeeting,
-        updateMeeting,
-        deleteMeeting,
-        transcribeMeeting,
-        generateSummary,
-        loadTranscription,
-      }}
-    >
+    <MeetingContext.Provider value={value}>
       {children}
     </MeetingContext.Provider>
   );
+};
+
+export const useMeetingContext = () => {
+  const context = useContext(MeetingContext);
+  if (context === undefined) {
+    throw new Error('useMeetingContext deve ser usado dentro de um MeetingProvider');
+  }
+  return context;
 }; 

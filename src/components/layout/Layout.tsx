@@ -1,6 +1,19 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, FileText, Mic } from 'lucide-react';
+import {
+  Home,
+  FileText,
+  Mic,
+  Plus,
+  Settings,
+  HelpCircle,
+  BarChart3,
+  User
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,92 +23,161 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
 
   const navigation = [
-    { id: 'dashboard', name: 'Início', href: '/dashboard', icon: Home, paths: ['/', '/dashboard'] },
-    { id: 'meetings', name: 'Reuniões', href: '/meetings', icon: FileText, paths: ['/meetings'] }
+    {
+      id: 'dashboard',
+      name: 'Dashboard',
+      href: '/dashboard',
+      icon: Home,
+      paths: ['/', '/dashboard']
+    },
+    {
+      id: 'meetings',
+      name: 'Reuniões',
+      href: '/meetings',
+      icon: FileText,
+      paths: ['/meetings']
+    },
+    {
+      id: 'analytics',
+      name: 'Análises',
+      href: '/analytics',
+      icon: BarChart3,
+      paths: ['/analytics']
+    }
   ];
 
-  const getCurrentPageName = () => {
+  const getCurrentPageInfo = () => {
     const currentPath = location.pathname;
 
-    // Check for meeting detail pages
     if (currentPath.startsWith('/meeting/')) {
-      return 'Detalhes da Reunião';
+      return { name: 'Detalhes da Reunião', subtitle: 'Visualizar transcrição e análises' };
     }
 
-    // Check for new meeting page
     if (currentPath === '/new-meeting') {
-      return 'Nova Reunião';
+      return { name: 'Nova Reunião', subtitle: 'Criar e configurar reunião' };
     }
 
-    // Find matching navigation item
     const page = navigation.find(nav => nav.paths.includes(currentPath));
-    return page?.name || 'Início';
+    return {
+      name: page?.name || 'Dashboard',
+      subtitle: page?.name === 'Dashboard' ? 'Visão geral das suas reuniões' :
+        page?.name === 'Reuniões' ? 'Gerenciar suas reuniões' :
+          page?.name === 'Análises' ? 'Relatórios e insights' : ''
+    };
   };
 
+  const pageInfo = getCurrentPageInfo();
+
   return (
-    <div className="min-h-screen main-content">
+    <div className="min-h-screen bg-background">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 z-40 w-64 h-screen sidebar-clean">
-        <div className="h-full flex flex-col">
+      <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r bg-card">
+        <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex items-center mb-8">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
-              <Mic className="w-4 h-4 text-white" />
+          <div className="flex items-center border-b px-6 py-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
+              <Mic className="h-5 w-5 text-primary-foreground" />
             </div>
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <div className="ml-3">
+              <h1 className="text-lg font-semibold text-foreground">
                 Smart Meeting
               </h1>
+              <Badge variant="secondary" className="text-xs">
+                AI-Powered
+              </Badge>
             </div>
           </div>
 
+          {/* Quick Action */}
+          <div className="p-6">
+            <Button asChild className="w-full">
+              <Link to="/new-meeting">
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Reunião
+              </Link>
+            </Button>
+          </div>
+
           {/* Navigation */}
-          <nav className="space-y-1 flex-1">
+          <nav className="flex-1 space-y-1 px-4">
+            <div className="mb-4 px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Menu
+            </div>
             {navigation.map((item) => {
               const Icon = item.icon;
               const isActive = item.paths.includes(location.pathname);
 
               return (
-                <Link
+                <Button
                   key={item.id}
-                  to={item.href}
-                  className={`nav-item ${isActive ? 'active' : ''}`}
+                  variant={isActive ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full justify-start",
+                    isActive && "bg-secondary font-medium"
+                  )}
+                  asChild
                 >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.name}</span>
-                </Link>
+                  <Link to={item.href}>
+                    <Icon className="mr-2 h-4 w-4" />
+                    {item.name}
+                  </Link>
+                </Button>
               );
             })}
           </nav>
+
+          {/* Bottom Actions */}
+          <div className="border-t p-4">
+            <div className="space-y-1">
+              <Button variant="ghost" className="w-full justify-start" asChild>
+                <Link to="/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Configurações
+                </Link>
+              </Button>
+              <Button variant="ghost" className="w-full justify-start" asChild>
+                <Link to="/help">
+                  <HelpCircle className="mr-2 h-4 w-4" />
+                  Ajuda
+                </Link>
+              </Button>
+            </div>
+
+            <Separator className="my-4" />
+
+            {/* User Info */}
+            <div className="flex items-center gap-3 rounded-lg bg-muted p-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <User className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-foreground truncate">Usuário</div>
+                <Badge variant="outline" className="text-xs">
+                  Plano Pro
+                </Badge>
+              </div>
+            </div>
+          </div>
         </div>
       </aside>
 
       {/* Main Content */}
       <div className="ml-64">
         {/* Header */}
-        <header className="px-8 py-6 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-title">
-                {getCurrentPageName()}
-              </h2>
-              <p className="text-caption mt-1">
-                {new Date().toLocaleDateString('pt-BR', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </p>
-            </div>
+        <header className="border-b bg-card px-6 py-4">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">
+              {pageInfo.name}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {pageInfo.subtitle}
+            </p>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="p-8">
-          <div className="animate-fade-in">
-            {children}
-          </div>
+        <main className="p-6">
+          {children}
         </main>
       </div>
     </div>

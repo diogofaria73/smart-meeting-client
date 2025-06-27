@@ -4,155 +4,122 @@ import { useMeeting } from '@/contexts/MeetingContext';
 import {
   Upload,
   FileAudio,
+  Check,
   ArrowLeft,
+  ArrowRight,
   X,
-  CheckCircle,
-  Calendar,
-  Users,
-  Plus,
-  Trash2
+  Loader2
 } from 'lucide-react';
-import type { MeetingResponse } from '@/types';
-
-interface CreateMeetingData {
-  title: string;
-  description: string;
-  date: string;
-  participants: string[];
-}
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 
 const NewMeeting: React.FC = () => {
   const navigate = useNavigate();
-  const { state, loadAllMeetings } = useMeeting();
-  const [currentStep, setCurrentStep] = useState<'create' | 'upload'>('create');
-  const [createdMeeting, setCreatedMeeting] = useState<MeetingResponse | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'transcribing' | 'completed' | 'error'>('idle');
-  const [showCompletionDialog, setShowCompletionDialog] = useState(false);
-  const [isLoadingMeeting, setIsLoadingMeeting] = useState(false);
+  const { createMeeting, uploadAudioToMeeting } = useMeeting();
 
-  // Form data para criar reunião
-  const [formData, setFormData] = useState<CreateMeetingData>({
+  const [currentStep, setCurrentStep] = useState(1);
+  const [formData, setFormData] = useState({
     title: '',
     description: '',
-    date: new Date().toISOString().split('T')[0],
-    participants: ['']
+    participants: ''
   });
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [isCreatingMeeting, setIsCreatingMeeting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [createdMeetingId, setCreatedMeetingId] = useState<string | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleParticipantChange = (index: number, value: string) => {
-    const newParticipants = [...formData.participants];
-    newParticipants[index] = value;
-    setFormData(prev => ({
-      ...prev,
-      participants: newParticipants
-    }));
-  };
-
-  const addParticipant = () => {
-    setFormData(prev => ({
-      ...prev,
-      participants: [...prev.participants, '']
-    }));
-  };
-
-  const removeParticipant = (index: number) => {
-    if (formData.participants.length > 1) {
-      const newParticipants = formData.participants.filter((_, i) => i !== index);
-      setFormData(prev => ({
-        ...prev,
-        participants: newParticipants
-      }));
+  const handleFileSelect = (file: File | null) => {
+    if (file && file.type.startsWith('audio/')) {
+      setAudioFile(file);
     }
   };
 
-  const handleCreateMeeting = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.title.trim()) return;
-
-    setIsSubmitting(true);
-    try {
-      // Filtrar participantes vazios
-      const participants = formData.participants.filter(p => p.trim() !== '');
-
-      // Criar reunião via API
-      const response = await fetch('http://localhost:8000/api/meetings/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: formData.title,
-          description: formData.description || '',
-          date: new Date(formData.date).toISOString(),
-          participants: participants
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao criar reunião');
-      }
-
-      const meeting: MeetingResponse = await response.json();
-      setCreatedMeeting(meeting);
-      setCurrentStep('upload');
-    } catch (error) {
-      console.error('Erro ao criar reunião:', error);
-      alert('Erro ao criar reunião. Tente novamente.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+  const handleFileRemove = () => {
+    setAudioFile(null);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      if (file.type.startsWith('audio/')) {
-        setAudioFile(file);
-      } else {
-        alert('Por favor, selecione um arquivo de áudio válido.');
-      }
+    setIsDragActive(false);
+    const files = Array.from(e.dataTransfer.files);
+    const audioFile = files.find(file => file.type.startsWith('audio/'));
+    if (audioFile) {
+      handleFileSelect(audioFile);
     }
   };
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type.startsWith('audio/')) {
-      setAudioFile(file);
-    } else {
-      alert('Por favor, selecione um arquivo de áudio válido.');
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragActive(false);
+  };
+
+  const handleCreateMeeting = async () => {
+    if (!formData.title) return;
+
+    setIsCreatingMeeting(true);
+    try {
+      const participantsList = formData.participants
+        .split(',')
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
+
+      const createdMeeting = await createMeeting({
+        title: formData.title,
+        description: formData.description,
+        participants: participantsList,
+      });
+
+      setCreatedMeetingId(createdMeeting.id.toString());
+      setCurrentStep(2); // Avançar para o próximo step
+    } catch (error) {
+      console.error('Erro ao criar reunião:', error);
+    } finally {
+      setIsCreatingMeeting(false);
     }
   };
 
-  const removeAudioFile = () => {
-    setAudioFile(null);
+  const handleUploadAudio = async () => {
+    if (!createdMeetingId || !audioFile) return;
+
+    setIsUploading(true);
     setUploadProgress(0);
-    setUploadStatus('idle');
-    setShowCompletionDialog(false);
+
+    try {
+      await uploadAudioToMeeting(createdMeetingId, audioFile, (progress) => {
+        setUploadProgress(progress);
+      });
+
+      navigate('/meetings');
+    } catch (error) {
+      console.error('Erro ao fazer upload do áudio:', error);
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const canProceed = () => {
+    if (currentStep === 1) {
+      return formData.title.trim().length > 0;
+    }
+    return true; // Step 2 sempre pode prosseguir (upload é opcional)
   };
 
   const formatFileSize = (bytes: number) => {
@@ -163,469 +130,274 @@ const NewMeeting: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
+  const steps = [
+    { id: 1, name: 'Informações', description: 'Dados básicos da reunião' },
+    { id: 2, name: 'Upload de Áudio', description: 'Arquivo para transcrição' }
+  ];
 
-  const handleUploadAudio = async () => {
-    if (!audioFile || !createdMeeting) return;
-
-    setIsSubmitting(true);
-    setUploadProgress(0);
-    setUploadStatus('uploading');
-
-    try {
-      const formData = new FormData();
-      formData.append('file', audioFile); // O endpoint espera 'file', não 'audio_file'
-
-      // Fase 1: Upload do arquivo
-      const uploadInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 40) {
-            clearInterval(uploadInterval);
-            return 40;
-          }
-          return prev + 8;
-        });
-      }, 200);
-
-      const response = await fetch(`http://localhost:8000/api/transcriptions/transcribe?meeting_id=${createdMeeting.id}`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Erro ao fazer upload do áudio');
-      }
-
-      // Fase 2: Processamento da transcrição
-      setUploadStatus('transcribing');
-      setUploadProgress(50);
-
-      const transcriptionInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(transcriptionInterval);
-            return 95;
-          }
-          return prev + 5;
-        });
-      }, 500);
-
-      const result = await response.json();
-
-      // Finalizar processamento
-      clearInterval(transcriptionInterval);
-      setUploadProgress(100);
-      setUploadStatus('completed');
-
-      // Mostrar dialog de confirmação após 1 segundo
-      setTimeout(() => {
-        setShowCompletionDialog(true);
-      }, 1000);
-
-    } catch (error) {
-      console.error('Erro ao fazer upload:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      setUploadStatus('error');
-      alert(`Erro ao fazer upload do áudio: ${errorMessage}`);
-      setUploadProgress(0);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleSkipAudio = () => {
-    if (createdMeeting) {
-      // Redirecionar para a reunião criada
-      navigate(`/meeting/${createdMeeting.id}`);
-    }
-  };
-
-  const handleViewTranscription = async () => {
-    if (createdMeeting) {
-      try {
-        setIsLoadingMeeting(true);
-
-        // Recarregar as reuniões para incluir a nova reunião com transcrição
-        await loadAllMeetings();
-
-        // Fechar o dialog após carregar
-        setShowCompletionDialog(false);
-
-        // Navegar para a reunião
-        navigate(`/meeting/${createdMeeting.id}`);
-      } catch (error) {
-        console.error('Erro ao recarregar reuniões:', error);
-        setShowCompletionDialog(false);
-        // Mesmo com erro, tenta navegar
-        navigate(`/meeting/${createdMeeting.id}`);
-      } finally {
-        setIsLoadingMeeting(false);
-      }
-    }
-  };
-
-  const handleGoToDashboard = () => {
-    navigate('/dashboard');
-  };
-
-  const getUploadStatusMessage = () => {
-    switch (uploadStatus) {
-      case 'uploading':
-        return 'Enviando arquivo de áudio...';
-      case 'transcribing':
-        return 'Processando transcrição...';
-      case 'completed':
-        return 'Transcrição concluída com sucesso!';
-      case 'error':
-        return 'Erro no processamento';
-      default:
-        return '';
-    }
-  };
-
-  const canCreateMeeting = formData.title.trim() !== '';
-
-  // Etapa 1: Criar reunião
-  if (currentStep === 'create') {
-    return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="btn-secondary"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Voltar
-          </button>
-          <div>
-            <h1 className="text-title">Nova Reunião</h1>
-            <p className="text-body">Etapa 1 de 2: Informações da reunião</p>
-          </div>
-        </div>
-
-        <form onSubmit={handleCreateMeeting} className="space-y-6">
-          {/* Informações básicas */}
-          <div className="card-clean p-6 space-y-4">
-            <h2 className="text-subtitle">Informações da Reunião</h2>
-
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Header */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/meetings')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Título *
-              </label>
-              <input
-                type="text"
+              <CardTitle className="text-2xl">Nova Reunião</CardTitle>
+              <CardDescription>
+                Passo {currentStep} de {steps.length} - {steps[currentStep - 1]?.description}
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          {/* Progress */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              {steps.map((step, index) => (
+                <div key={step.id} className="flex items-center">
+                  <div className="flex items-center">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-full border-2 ${currentStep >= step.id
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-muted bg-background text-muted-foreground'
+                      }`}>
+                      {currentStep > step.id ? (
+                        <Check className="h-5 w-5" />
+                      ) : (
+                        <span className="text-sm font-medium">{step.id}</span>
+                      )}
+                    </div>
+                    <div className="ml-3 hidden sm:block">
+                      <p className={`text-sm font-medium ${currentStep >= step.id ? 'text-foreground' : 'text-muted-foreground'
+                        }`}>
+                        {step.name}
+                      </p>
+                    </div>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className={`mx-4 h-0.5 flex-1 ${currentStep > step.id ? 'bg-primary' : 'bg-muted'
+                      }`} />
+                  )}
+                </div>
+              ))}
+            </div>
+            <Progress value={(currentStep / steps.length) * 100} className="h-2" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Step Content */}
+      {currentStep === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Informações da Reunião</CardTitle>
+            <CardDescription>
+              Preencha os dados básicos da sua reunião
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="title">Título da reunião *</Label>
+              <Input
+                id="title"
                 name="title"
                 value={formData.title}
                 onChange={handleInputChange}
-                className="input-clean"
-                placeholder="Nome da reunião"
+                placeholder="Ex: Reunião de planejamento semanal"
                 required
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Descrição
-              </label>
-              <textarea
+            <div className="space-y-2">
+              <Label htmlFor="description">Descrição (opcional)</Label>
+              <Textarea
+                id="description"
                 name="description"
                 value={formData.description}
                 onChange={handleInputChange}
-                className="input-clean"
+                placeholder="Descreva brevemente o objetivo da reunião..."
                 rows={3}
-                placeholder="Descrição opcional da reunião"
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Data
-              </label>
-              <input
-                type="date"
-                name="date"
-                value={formData.date}
+            <div className="space-y-2">
+              <Label htmlFor="participants">Participantes (opcional)</Label>
+              <Input
+                id="participants"
+                name="participants"
+                value={formData.participants}
                 onChange={handleInputChange}
-                className="input-clean"
+                placeholder="João Silva, Maria Santos, Pedro Costa..."
               />
-            </div>
-
-            {/* Participantes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Participantes
-              </label>
-              <div className="space-y-2">
-                {formData.participants.map((participant, index) => (
-                  <div key={index} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={participant}
-                      onChange={(e) => handleParticipantChange(index, e.target.value)}
-                      className="input-clean flex-1"
-                      placeholder={`Participante ${index + 1}`}
-                    />
-                    {formData.participants.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeParticipant(index)}
-                        className="btn-secondary"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={addParticipant}
-                  className="btn-secondary"
-                >
-                  <Plus className="w-4 h-4" />
-                  Adicionar participante
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Botões */}
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/dashboard')}
-              className="btn-secondary"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={!canCreateMeeting || isSubmitting}
-              className="btn-primary"
-            >
-              {isSubmitting ? 'Criando...' : 'Criar Reunião'}
-            </button>
-          </div>
-        </form>
-      </div>
-    );
-  }
-
-  // Etapa 2: Upload de áudio
-  return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => setCurrentStep('create')}
-          className="btn-secondary"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Voltar
-        </button>
-        <div>
-          <h1 className="text-title">Nova Reunião</h1>
-          <p className="text-body">Etapa 2 de 2: Upload de áudio para transcrição</p>
-        </div>
-      </div>
-
-      {/* Reunião criada */}
-      {createdMeeting && (
-        <div className="card-clean p-6 space-y-4">
-          <div className="flex items-center gap-2 text-green-600">
-            <CheckCircle className="w-5 h-5" />
-            <h2 className="text-subtitle">Reunião criada com sucesso!</h2>
-          </div>
-
-          <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">
-              {createdMeeting.title}
-            </h3>
-            {createdMeeting.description && (
-              <p className="text-body mb-2">{createdMeeting.description}</p>
-            )}
-            <div className="flex items-center gap-4 text-caption">
-              <div className="flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                <span>{formatDate(createdMeeting.date)}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Users className="w-3 h-3" />
-                <span>{createdMeeting.participants.length} participantes</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Upload de áudio */}
-      <div className="card-clean p-6 space-y-4">
-        <h2 className="text-subtitle">Upload de Áudio</h2>
-        <p className="text-body">
-          Faça upload do arquivo de áudio da reunião para gerar a transcrição automática.
-        </p>
-
-        {!audioFile ? (
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive
-              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-              : 'border-gray-300 dark:border-gray-600'
-              }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              Arraste o arquivo de áudio aqui
-            </h3>
-            <p className="text-body mb-4">
-              Ou clique para selecionar um arquivo
-            </p>
-            <input
-              type="file"
-              accept="audio/*"
-              onChange={handleFileInput}
-              className="hidden"
-              id="audio-upload"
-            />
-            <label htmlFor="audio-upload" className="btn-primary cursor-pointer">
-              Selecionar arquivo
-            </label>
-            <p className="text-caption mt-2">
-              Formatos suportados: MP3, WAV, M4A, AAC
-            </p>
-          </div>
-        ) : (
-          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-            <div className="flex items-center gap-4">
-              <FileAudio className="w-8 h-8 text-blue-500" />
-              <div className="flex-1">
-                <h4 className="font-medium text-gray-900 dark:text-white">
-                  {audioFile.name}
-                </h4>
-                <p className="text-caption">
-                  {formatFileSize(audioFile.size)}
-                </p>
-              </div>
-              <button
-                onClick={removeAudioFile}
-                className="btn-secondary"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {uploadProgress > 0 && uploadStatus !== 'idle' && (
-              <div className="mt-4">
-                <div className="flex justify-between text-sm mb-1">
-                  <span>{getUploadStatusMessage()}</span>
-                  <span>{uploadProgress}%</span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all ${uploadStatus === 'error'
-                      ? 'bg-red-600'
-                      : uploadStatus === 'completed'
-                        ? 'bg-green-600'
-                        : 'bg-blue-600'
-                      }`}
-                    style={{ width: `${uploadProgress}%` }}
-                  ></div>
-                </div>
-
-                {uploadStatus === 'transcribing' && (
-                  <div className="flex items-center gap-2 mt-2 text-sm text-blue-600">
-                    <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                    <span>Aguarde, processando a transcrição...</span>
-                  </div>
-                )}
-
-                {uploadStatus === 'completed' && (
-                  <div className="flex items-center gap-2 mt-2 text-sm text-green-600">
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Processamento concluído!</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Botões */}
-      <div className="flex justify-between">
-        <button
-          onClick={handleSkipAudio}
-          disabled={isSubmitting || uploadStatus === 'uploading' || uploadStatus === 'transcribing'}
-          className="btn-secondary"
-        >
-          Pular por agora
-        </button>
-        <div className="flex gap-3">
-          {audioFile && uploadStatus !== 'completed' && (
-            <button
-              onClick={handleUploadAudio}
-              disabled={isSubmitting || uploadStatus === 'uploading' || uploadStatus === 'transcribing'}
-              className="btn-primary"
-            >
-              {uploadStatus === 'uploading' ? 'Enviando...' :
-                uploadStatus === 'transcribing' ? 'Processando...' :
-                  'Enviar Áudio'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Dialog de confirmação após transcrição */}
-      {showCompletionDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="text-center">
-              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Transcrição Concluída!
-              </h3>
-              <p className="text-body mb-6">
-                A transcrição foi processada com sucesso. Deseja visualizar o resultado agora?
+              <p className="text-sm text-muted-foreground">
+                Separe os nomes dos participantes com vírgulas
               </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={handleGoToDashboard}
-                  disabled={isLoadingMeeting}
-                  className="btn-secondary"
-                >
-                  Não, voltar ao início
-                </button>
-                <button
-                  onClick={handleViewTranscription}
-                  disabled={isLoadingMeeting}
-                  className="btn-primary"
-                >
-                  {isLoadingMeeting ? (
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
-                      Carregando...
-                    </div>
-                  ) : (
-                    'Sim, visualizar'
-                  )}
-                </button>
+      {currentStep === 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Upload do Arquivo de Áudio</CardTitle>
+            <CardDescription>
+              {createdMeetingId
+                ? `Reunião "${formData.title}" criada com sucesso! Agora faça upload do arquivo de áudio para transcrição automática.`
+                : 'Faça upload do arquivo de áudio para transcrição automática'
+              }
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-6">
+            {!audioFile ? (
+              <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                className={`relative rounded-lg border-2 border-dashed p-12 text-center transition-colors ${isDragActive
+                  ? 'border-primary bg-primary/5'
+                  : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                  }`}
+              >
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div className="mt-4">
+                  <h3 className="text-lg font-medium text-foreground">
+                    Solte seu arquivo aqui
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    ou clique para selecionar um arquivo
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Formatos suportados: MP3, WAV, M4A, OGG (máx. 100MB)
+                  </p>
+                </div>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                />
               </div>
+            ) : (
+              <div className="rounded-lg border bg-muted/50 p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                      <FileAudio className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">{audioFile.name}</p>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span>{formatFileSize(audioFile.size)}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {audioFile.type.split('/')[1]?.toUpperCase()}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={handleFileRemove}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-lg bg-blue-50 p-4">
+              <h4 className="text-sm font-medium text-blue-900 mb-2">💡 Dicas para melhor qualidade:</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Use gravações com boa qualidade de áudio</li>
+                <li>• Evite muito ruído de fundo</li>
+                <li>• Fale claramente e em ritmo normal</li>
+                <li>• Arquivos mais curtos processam mais rapidamente</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Navigation */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              {currentStep > 1 && !createdMeetingId && (
+                <Button variant="outline" onClick={() => setCurrentStep(currentStep - 1)}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Voltar
+                </Button>
+              )}
+              {createdMeetingId && (
+                <p className="text-sm text-muted-foreground">
+                  Reunião criada com sucesso! ID: #{createdMeetingId}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {currentStep === 1 ? (
+                <Button
+                  onClick={handleCreateMeeting}
+                  disabled={!canProceed() || isCreatingMeeting}
+                >
+                  {isCreatingMeeting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Criando Reunião...
+                    </>
+                  ) : (
+                    <>
+                      Criar Reunião
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              ) : currentStep === 2 && !audioFile ? (
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Faça upload do áudio ou pule esta etapa
+                  </p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => navigate('/meetings')}>
+                      Pular Upload
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  onClick={handleUploadAudio}
+                  disabled={!audioFile || isUploading}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Enviando... {uploadProgress}%
+                    </>
+                  ) : (
+                    'Enviar Áudio'
+                  )}
+                </Button>
+              )}
             </div>
           </div>
-        </div>
-      )}
+
+          {/* Progress bar para upload */}
+          {isUploading && uploadProgress > 0 && (
+            <div className="mt-4">
+              <Progress value={uploadProgress} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1 text-center">
+                Fazendo upload do arquivo... {uploadProgress}%
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

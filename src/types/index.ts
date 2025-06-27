@@ -14,8 +14,8 @@ export interface Meeting {
 export interface MeetingCreate {
   title: string;
   description?: string;
-  date: string; // ISO string
-  participants: string[]; // JSON array as string
+  date: string; // ISO string - backend irá converter para datetime
+  participants: string[]; // Array de strings - backend espera List[str]
 }
 
 // Tipo para criar reunião (dados do formulário)

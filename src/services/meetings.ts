@@ -28,13 +28,20 @@ export class MeetingService {
   // Criar nova reunião
   static async createMeeting(meetingData: MeetingCreate): Promise<Meeting> {
     try {
+      const payload = {
+        title: meetingData.title,
+        description: meetingData.description || '',
+        date: meetingData.date, // Enviar como ISO string, backend converte para datetime
+        participants: meetingData.participants || [] // Enviar como array de strings (pode ser vazio)
+      };
+
+      console.log('📤 Sending meeting data:', payload);
+
       return await apiCall(() =>
-        api.post<Meeting>('/api/meetings/', {
-          ...meetingData,
-          participants: JSON.stringify(meetingData.participants) // Backend expects JSON string
-        })
+        api.post<Meeting>('/api/meetings/', payload)
       );
     } catch (error) {
+      console.error('❌ Create meeting error:', error);
       throw handleApiError(error);
     }
   }
@@ -130,8 +137,9 @@ export class MeetingService {
 
   static async getDashboardStats(days: number = 30): Promise<DashboardStats> {
     try {
-      const response = await api.get(`/meetings/stats?days=${days}`);
-      return response.data;
+      return await apiCall(() =>
+        api.get<DashboardStats>(`/api/meetings/stats?days=${days}`)
+      );
     } catch (error) {
       throw handleApiError(error);
     }

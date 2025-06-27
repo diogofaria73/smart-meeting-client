@@ -1,145 +1,242 @@
-import React from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import * as React from "react"
+import { cn } from "@/lib/utils"
+import { type ButtonProps, buttonVariants } from "@/components/ui/button"
+import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
 
-interface PaginationProps {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-  hasNext: boolean;
-  hasPrev: boolean;
-  total: number;
-  pageSize: number;
+const Pagination = ({ className, ...props }: React.ComponentProps<"nav">) => (
+  <nav
+    role="navigation"
+    aria-label="pagination"
+    className={cn("mx-auto flex w-full justify-center", className)}
+    {...props}
+  />
+)
+Pagination.displayName = "Pagination"
+
+const PaginationContent = React.forwardRef<
+  HTMLUListElement,
+  React.ComponentProps<"ul">
+>(({ className, ...props }, ref) => (
+  <ul
+    ref={ref}
+    className={cn("flex flex-row items-center gap-1", className)}
+    {...props}
+  />
+))
+PaginationContent.displayName = "PaginationContent"
+
+const PaginationItem = React.forwardRef<
+  HTMLLIElement,
+  React.ComponentProps<"li">
+>(({ className, ...props }, ref) => (
+  <li ref={ref} className={cn("", className)} {...props} />
+))
+PaginationItem.displayName = "PaginationItem"
+
+type PaginationLinkProps = {
+  isActive?: boolean
+} & Pick<ButtonProps, "size"> &
+  React.ComponentProps<"a">
+
+const PaginationLink = ({
+  className,
+  isActive,
+  size = "icon",
+  ...props
+}: PaginationLinkProps) => (
+  <a
+    aria-current={isActive ? "page" : undefined}
+    className={cn(
+      buttonVariants({
+        variant: isActive ? "outline" : "ghost",
+        size,
+      }),
+      className
+    )}
+    {...props}
+  />
+)
+PaginationLink.displayName = "PaginationLink"
+
+const PaginationPrevious = ({
+  className,
+  ...props
+}: React.ComponentProps<typeof PaginationLink>) => (
+  <PaginationLink
+    aria-label="Ir para página anterior"
+    size="default"
+    className={cn("gap-1 pl-2.5", className)}
+    {...props}
+  >
+    <ChevronLeft className="h-4 w-4" />
+    <span>Anterior</span>
+  </PaginationLink>
+)
+PaginationPrevious.displayName = "PaginationPrevious"
+
+const PaginationNext = ({
+  className,
+  ...props
+}: React.ComponentProps<typeof PaginationLink>) => (
+  <PaginationLink
+    aria-label="Ir para próxima página"
+    size="default"
+    className={cn("gap-1 pr-2.5", className)}
+    {...props}
+  >
+    <span>Próximo</span>
+    <ChevronRight className="h-4 w-4" />
+  </PaginationLink>
+)
+PaginationNext.displayName = "PaginationNext"
+
+const PaginationEllipsis = ({
+  className,
+  ...props
+}: React.ComponentProps<"span">) => (
+  <span
+    aria-hidden
+    className={cn("flex h-9 w-9 items-center justify-center", className)}
+    {...props}
+  >
+    <MoreHorizontal className="h-4 w-4" />
+    <span className="sr-only">Mais páginas</span>
+  </span>
+)
+PaginationEllipsis.displayName = "PaginationEllipsis"
+
+// Componente wrapper para manter compatibilidade com a interface existente
+interface SmartPaginationProps {
+  currentPage: number
+  totalPages: number
+  onPageChange: (page: number) => void
+  hasNext: boolean
+  hasPrev: boolean
+  total: number
+  pageSize: number
+  className?: string
 }
 
-const Pagination: React.FC<PaginationProps> = ({
+const SmartPagination: React.FC<SmartPaginationProps> = ({
   currentPage,
   totalPages,
   onPageChange,
   hasNext,
   hasPrev,
   total,
-  pageSize
+  pageSize,
+  className
 }) => {
-  const startItem = (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, total);
+  const startItem = (currentPage - 1) * pageSize + 1
+  const endItem = Math.min(currentPage * pageSize, total)
 
   const getVisiblePages = () => {
-    const pages: number[] = [];
-    const maxVisiblePages = 5;
+    const pages: number[] = []
+    const maxVisiblePages = 5
 
     if (totalPages <= maxVisiblePages) {
-      // Se há poucas páginas, mostra todas
       for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
+        pages.push(i)
       }
     } else {
-      // Lógica mais complexa para muitas páginas
-      const startPage = Math.max(1, currentPage - 2);
-      const endPage = Math.min(totalPages, currentPage + 2);
+      const startPage = Math.max(1, currentPage - 2)
+      const endPage = Math.min(totalPages, currentPage + 2)
 
       if (startPage > 1) {
-        pages.push(1);
-        if (startPage > 2) pages.push(-1); // Representa "..."
+        pages.push(1)
+        if (startPage > 2) pages.push(-1) // Representa "..."
       }
 
       for (let i = startPage; i <= endPage; i++) {
-        pages.push(i);
+        pages.push(i)
       }
 
       if (endPage < totalPages) {
-        if (endPage < totalPages - 1) pages.push(-1); // Representa "..."
-        pages.push(totalPages);
+        if (endPage < totalPages - 1) pages.push(-1) // Representa "..."
+        pages.push(totalPages)
       }
     }
 
-    return pages;
-  };
+    return pages
+  }
 
-  if (totalPages <= 1) return null;
+  if (totalPages <= 1) return null
 
   return (
-    <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 px-4 py-3 sm:px-6">
-      <div className="flex flex-1 justify-between sm:hidden">
-        {/* Mobile */}
-        <button
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={!hasPrev}
-          className="relative inline-flex items-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Anterior
-        </button>
-        <button
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={!hasNext}
-          className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Próximo
-        </button>
+    <div className={cn("flex flex-col gap-4", className)}>
+      {/* Informação sobre os resultados */}
+      <div className="text-sm text-muted-foreground">
+        Mostrando <span className="font-medium">{startItem}</span> a{" "}
+        <span className="font-medium">{endItem}</span> de{" "}
+        <span className="font-medium">{total}</span> resultados
       </div>
 
-      <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm text-gray-700 dark:text-gray-300">
-            Mostrando <span className="font-medium">{startItem}</span> a{' '}
-            <span className="font-medium">{endItem}</span> de{' '}
-            <span className="font-medium">{total}</span> resultados
-          </p>
-        </div>
+      {/* Paginação */}
+      <Pagination>
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              href="#"
+              onClick={(e) => {
+                e.preventDefault()
+                if (hasPrev) onPageChange(currentPage - 1)
+              }}
+              className={cn(!hasPrev && "pointer-events-none opacity-50")}
+            />
+          </PaginationItem>
 
-        <div>
-          <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-            {/* Botão Anterior */}
-            <button
-              onClick={() => onPageChange(currentPage - 1)}
-              disabled={!hasPrev}
-              className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="sr-only">Anterior</span>
-              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-            </button>
-
-            {/* Números das páginas */}
-            {getVisiblePages().map((page, index) => {
-              if (page === -1) {
-                return (
-                  <span
-                    key={`ellipsis-${index}`}
-                    className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 ring-1 ring-inset ring-gray-300 dark:ring-gray-600 focus:outline-offset-0"
-                  >
-                    ...
-                  </span>
-                );
-              }
-
-              const isCurrentPage = page === currentPage;
+          {getVisiblePages().map((page, index) => {
+            if (page === -1) {
               return (
-                <button
-                  key={page}
-                  onClick={() => onPageChange(page)}
-                  className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ring-1 ring-inset ring-gray-300 dark:ring-gray-600 focus:z-20 focus:outline-offset-0 ${isCurrentPage
-                      ? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
-                      : 'text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
-                    }`}
+                <PaginationItem key={`ellipsis-${index}`}>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              )
+            }
+
+            const isCurrentPage = page === currentPage
+            return (
+              <PaginationItem key={page}>
+                <PaginationLink
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    onPageChange(page)
+                  }}
+                  isActive={isCurrentPage}
                 >
                   {page}
-                </button>
-              );
-            })}
+                </PaginationLink>
+              </PaginationItem>
+            )
+          })}
 
-            {/* Botão Próximo */}
-            <button
-              onClick={() => onPageChange(currentPage + 1)}
-              disabled={!hasNext}
-              className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="sr-only">Próximo</span>
-              <ChevronRight className="h-5 w-5" aria-hidden="true" />
-            </button>
-          </nav>
-        </div>
-      </div>
+          <PaginationItem>
+            <PaginationNext
+              href="#"
+              onClick={(e) => {
+                e.preventDefault()
+                if (hasNext) onPageChange(currentPage + 1)
+              }}
+              className={cn(!hasNext && "pointer-events-none opacity-50")}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
     </div>
-  );
-};
+  )
+}
 
-export default Pagination; 
+export {
+  Pagination,
+  PaginationContent,
+  PaginationLink,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+  SmartPagination,
+}
+
+// Export default para compatibilidade
+export default SmartPagination

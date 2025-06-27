@@ -1,130 +1,97 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import {
   FileText,
-  CheckCircle,
-  RotateCcw,
-  Play,
   Calendar,
-  ArrowRight,
-  MessageSquare,
-  Users
+  Users,
+  Mic,
+  Clock
 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import type { MeetingWithTranscriptions } from '@/types';
 
 interface MeetingCardProps {
   meeting: MeetingWithTranscriptions;
-  onClick: (meetingId: number) => void;
 }
 
-const MeetingCard: React.FC<MeetingCardProps> = ({ meeting, onClick }) => {
-  const getStatusInfo = (meeting: MeetingWithTranscriptions) => {
+const MeetingCard: React.FC<MeetingCardProps> = ({ meeting }) => {
+  const getStatus = () => {
     if (meeting.has_transcription && meeting.transcriptions.length > 0) {
-      return { icon: CheckCircle, class: 'status-completed', label: 'Concluída' };
+      return {
+        label: 'Transcrita',
+        variant: 'default' as const,
+        className: 'bg-green-100 text-green-800 hover:bg-green-100'
+      };
     } else if (meeting.has_transcription) {
-      return { icon: RotateCcw, class: 'status-processing', label: 'Processando' };
+      return {
+        label: 'Processando',
+        variant: 'secondary' as const,
+        className: 'bg-orange-100 text-orange-800 hover:bg-orange-100'
+      };
     } else {
-      return { icon: Play, class: 'status-created', label: 'Criada' };
+      return {
+        label: 'Criada',
+        variant: 'outline' as const,
+        className: 'bg-gray-100 text-gray-800 hover:bg-gray-100'
+      };
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const statusInfo = getStatusInfo(meeting);
+  const status = getStatus();
 
   return (
-    <div
-      className="card-clean p-4 cursor-pointer hover:shadow-sm transition-shadow"
-      onClick={() => onClick(meeting.id)}
-    >
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-          <FileText className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-gray-900 dark:text-white truncate">
-            {meeting.title}
-          </h3>
-          {meeting.description && (
-            <p className="text-body truncate mt-1">
-              {meeting.description}
-            </p>
-          )}
-
-          <div className="flex items-center gap-4 mt-2">
-            <div className="flex items-center gap-1">
-              <div className={`status-dot ${statusInfo.class}`} />
-              <span className="text-caption">{statusInfo.label}</span>
+    <Link to={`/meeting/${meeting.id}`} className="block group">
+      <Card className="h-full transition-all duration-200 hover:shadow-md hover:border-primary/20 group-hover:scale-[1.02]">
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+              <FileText className="h-5 w-5 text-muted-foreground" />
             </div>
+            <Badge
+              variant={status.variant}
+              className={status.className}
+            >
+              {status.label}
+            </Badge>
+          </div>
+        </CardHeader>
 
-            <div className="flex items-center gap-1">
-              <Calendar className="w-3 h-3 text-gray-400" />
-              <span className="text-caption">
-                {formatDate(meeting.date)}
-              </span>
+        <CardContent className="space-y-4">
+          <div>
+            <CardTitle className="line-clamp-2 text-base leading-tight">
+              {meeting.title}
+            </CardTitle>
+            {meeting.description && (
+              <CardDescription className="mt-2 line-clamp-2">
+                {meeting.description}
+              </CardDescription>
+            )}
+          </div>
+
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              <span>{new Date(meeting.date).toLocaleDateString('pt-BR', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+              })}</span>
             </div>
-
-            <div className="flex items-center gap-1">
-              <Users className="w-3 h-3 text-gray-400" />
-              <span className="text-caption">
-                {meeting.participants.length} participantes
-              </span>
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              <span>{meeting.participants.length} participantes</span>
             </div>
-
             {meeting.transcriptions.length > 0 && (
-              <div className="flex items-center gap-1">
-                <MessageSquare className="w-3 h-3 text-green-500" />
-                <span className="text-caption text-green-600">
-                  {meeting.transcriptions.length} transcrição{meeting.transcriptions.length > 1 ? 'ões' : ''}
-                </span>
+              <div className="flex items-center gap-2 text-green-600">
+                <Mic className="h-4 w-4" />
+                <span>{meeting.transcriptions.length} transcrição{meeting.transcriptions.length > 1 ? 'ões' : ''}</span>
               </div>
             )}
           </div>
-
-          {/* Mostrar participantes */}
-          {meeting.participants.length > 0 && (
-            <div className="mt-2">
-              <span className="text-caption text-gray-500">
-                Participantes: {meeting.participants.join(', ')}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <ArrowRight className="w-4 h-4 text-gray-400" />
-      </div>
-
-      {/* Informações das transcrições */}
-      {meeting.transcriptions.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-          <div className="text-caption text-gray-600 dark:text-gray-400">
-            <strong>Transcrições disponíveis:</strong>
-          </div>
-          <div className="mt-1 space-y-1">
-            {meeting.transcriptions.slice(0, 2).map((transcription) => (
-              <div key={transcription.id} className="text-caption text-gray-500">
-                • {transcription.content.substring(0, 100)}
-                {transcription.content.length > 100 && '...'}
-              </div>
-            ))}
-            {meeting.transcriptions.length > 2 && (
-              <div className="text-caption text-gray-400">
-                +{meeting.transcriptions.length - 2} transcrição{meeting.transcriptions.length - 2 > 1 ? 'ões' : ''} adicional{meeting.transcriptions.length - 2 > 1 ? 'is' : ''}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 };
 

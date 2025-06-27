@@ -6,24 +6,32 @@ export class TranscriptionService {
   static async transcribeMeeting(
     meetingId: string,
     audioFile?: File,
-    onProgress?: (progress: TranscriptionProgress) => void
+    onProgress?: (progress: number) => void
   ): Promise<void> {
     try {
       if (audioFile) {
-        // Se há arquivo de áudio, fazer upload primeiro
+        // Se há arquivo de áudio, fazer upload
         const formData = new FormData();
-        formData.append('audio_file', audioFile);
+        formData.append('file', audioFile); // Changed from 'audio_file' to 'file'
 
+        // meeting_id vai como query parameter, não no FormData
         await uploadApi.post(`/api/transcriptions/transcribe?meeting_id=${meetingId}`, formData, {
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total && onProgress) {
+              const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+              onProgress(progress);
+            }
+          },
           headers: {
             'Content-Type': 'multipart/form-data',
           },
         });
       } else {
-        // Se não há arquivo, usar áudio já enviado
-        await api.post(`/api/transcriptions/transcribe?meeting_id=${meetingId}`);
+        // Se não há arquivo, erro - arquivo é obrigatório para transcrição
+        throw new Error('Arquivo de áudio é obrigatório para transcrição');
       }
     } catch (error) {
+      console.error('Erro ao transcrever reunião:', error);
       throw handleApiError(error);
     }
   }

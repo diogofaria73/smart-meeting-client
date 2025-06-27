@@ -18,7 +18,7 @@ import type { MeetingWithTranscriptions } from '@/types';
 const MeetingDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { state, loadAllMeetings } = useMeeting();
+  const { state, loadMeetings } = useMeeting();
   const [meeting, setMeeting] = useState<MeetingWithTranscriptions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -30,8 +30,8 @@ const MeetingDetail: React.FC = () => {
       }
 
       // Primeiro, tenta encontrar nos dados já carregados
-      if (state.meetingsWithTranscriptions.length > 0) {
-        const foundMeeting = state.meetingsWithTranscriptions.find(
+      if (state.meetings.length > 0) {
+        const foundMeeting = state.meetings.find(
           m => m.id.toString() === id
         );
         if (foundMeeting) {
@@ -43,9 +43,9 @@ const MeetingDetail: React.FC = () => {
 
       // Se não encontrou, recarrega todas as reuniões
       try {
-        await loadAllMeetings();
+        await loadMeetings();
         // Após recarregar, tenta encontrar novamente
-        const foundMeeting = state.meetingsWithTranscriptions.find(
+        const foundMeeting = state.meetings.find(
           m => m.id.toString() === id
         );
         setMeeting(foundMeeting || null);
@@ -58,7 +58,7 @@ const MeetingDetail: React.FC = () => {
     };
 
     loadMeetingData();
-  }, [id, state.meetingsWithTranscriptions, loadAllMeetings]);
+  }, [id, state.meetings, loadMeetings]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
