@@ -2,20 +2,35 @@ import { api, uploadApi, apiCall, handleApiError } from './api';
 import type { Transcription, TranscriptionProgress, ApiError } from '../types';
 
 export class TranscriptionService {
-  // Iniciar transcrição de uma reunião
-  static async transcribeMeeting(
+  // 🚀 NOVO: Iniciar transcrição ASSÍNCRONA de uma reunião
+  static async transcribeMeetingAsync(
     meetingId: string,
-    audioFile?: File,
+    audioFile: File,
+    enableDiarization: boolean = true,
     onProgress?: (progress: number) => void
-  ): Promise<void> {
+  ): Promise<{
+    task_id: string;
+    meeting_id: number;
+    status: string;
+    filename: string;
+    websocket_url: string;
+    status_url: string;
+    result_url: string;
+    message: string;
+  }> {
     try {
-      if (audioFile) {
-        // Se há arquivo de áudio, fazer upload
-        const formData = new FormData();
-        formData.append('file', audioFile); // Changed from 'audio_file' to 'file'
+      const formData = new FormData();
+      formData.append('file', audioFile);
 
-        // meeting_id vai como query parameter, não no FormData
-        await uploadApi.post(`/api/transcriptions/transcribe?meeting_id=${meetingId}`, formData, {
+      const params = new URLSearchParams({
+        meeting_id: meetingId,
+        enable_diarization: enableDiarization.toString()
+      });
+
+      const response = await uploadApi.post(
+        `/api/transcriptions/transcribe?${params.toString()}`,
+        formData,
+        {
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total && onProgress) {
               const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
@@ -25,11 +40,112 @@ export class TranscriptionService {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
-        });
-      } else {
-        // Se não há arquivo, erro - arquivo é obrigatório para transcrição
-        throw new Error('Arquivo de áudio é obrigatório para transcrição');
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao iniciar transcrição assíncrona:', error);
+      throw handleApiError(error);
+    }
+  }
+
+  // 📊 Consultar status de uma tarefa de transcrição
+  static async getTranscriptionTaskStatus(taskId: string): Promise<{
+    task_id: string;
+    status: string;
+    progress: {
+      percentage: number;
+      current_step: string;
+      message: string;
+      details?: string;
+      estimated_remaining_seconds?: number;
+    };
+    meeting_id: number;
+    timestamps: {
+      started_at: string;
+      updated_at: string;
+    };
+    error?: string;
+    is_running: boolean;
+  }> {
+    try {
+      return await apiCall(() =>
+        api.get(`/api/transcriptions/status/${taskId}`)
+      );
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
+
+  // 🛑 Cancelar tarefa de transcrição
+  static async cancelTranscriptionTask(taskId: string): Promise<{
+    message: string;
+    task_id: string;
+    cancelled: boolean;
+  }> {
+    try {
+      return await apiCall(() =>
+        api.delete(`/api/transcriptions/cancel/${taskId}`)
+      );
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
+
+  // 📋 Listar tarefas ativas
+  static async getActiveTranscriptionTasks(): Promise<{
+    total_active_tasks: number;
+    tasks: Record<string, any>;
+  }> {
+    try {
+      return await apiCall(() =>
+        api.get('/api/transcriptions/tasks/active')
+      );
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
+
+  // ⚠️ DEPRECATED: Método síncrono (mantido para compatibilidade)
+  static async transcribeMeeting(
+    meetingId: string,
+    audioFile?: File,
+    onProgress?: (progress: number) => void
+  ): Promise<void> {
+    console.warn('⚠️ transcribeMeeting() está deprecated. Use transcribeMeetingAsync() com WebSocket para melhor experiência');
+
+    if (!audioFile) {
+      throw new Error('Arquivo de áudio é obrigatório para transcrição');
+    }
+
+    try {
+      // Inicia transcrição assíncrona
+      const taskResult = await this.transcribeMeetingAsync(meetingId, audioFile, true, onProgress);
+
+      // Polling para aguardar conclusão (não recomendado para produção)
+      let attempts = 0;
+      const maxAttempts = 60; // 5 minutos máximo
+
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Aguarda 5 segundos
+
+        try {
+          const status = await this.getTranscriptionTaskStatus(taskResult.task_id);
+
+          if (status.status === 'completed') {
+            return; // Transcrição concluída
+          } else if (status.status === 'failed') {
+            throw new Error(status.error || 'Falha na transcrição');
+          }
+
+          attempts++;
+        } catch (error) {
+          attempts++;
+        }
       }
+
+      throw new Error('Timeout: Transcrição não foi concluída em tempo hábil');
     } catch (error) {
       console.error('Erro ao transcrever reunião:', error);
       throw handleApiError(error);

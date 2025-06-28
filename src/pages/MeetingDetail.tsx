@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMeeting } from '@/contexts/MeetingContext';
+import { useWebSocketNotifications } from '@/services/websocket';
 import {
   ArrowLeft,
   Calendar,
@@ -21,22 +22,77 @@ import {
   Eye,
   User,
   Timer,
-  Activity
+  Activity,
+  Upload,
+  Plus
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import AudioUpload from '@/components/features/AudioUpload';
 import type { MeetingWithTranscriptions } from '@/types';
+
+// Mapeamento dos steps do backend para mensagens user-friendly
+const PROGRESS_MESSAGES: Record<string, string> = {
+  'upload_validation': 'Validando arquivo...',
+  'audio_preprocessing': 'Processando áudio...',
+  'model_loading': 'Carregando modelo de IA...',
+  'transcription': 'Transcrevendo áudio...',
+  'speaker_diarization': 'Identificando falantes...',
+  'post_processing': 'Finalizando transcrição...',
+  'database_save': 'Salvando dados...',
+  'completed': 'Concluído!',
+  'error': 'Erro no processamento'
+};
 
 const MeetingDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { state, loadMeetings } = useMeeting();
+  const { state, loadMeetings, uploadAudioToExistingMeeting } = useMeeting();
   const [meeting, setMeeting] = useState<MeetingWithTranscriptions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTranscription, setSelectedTranscription] = useState<number>(0);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusMessage, setUploadStatusMessage] = useState('Preparando upload...');
+
+  // WebSocket para receber atualizações de progresso
+  const { notifications, isConnected } = useWebSocketNotifications(
+    meeting?.id ? Number(meeting.id) : undefined
+  );
+
+  // Processa notificações do WebSocket
+  useEffect(() => {
+    const latestNotification = notifications[notifications.length - 1];
+    if (!latestNotification || !isUploading) return;
+
+    // Atualiza progresso baseado nas notificações WebSocket
+    if (latestNotification.progress) {
+      const { progress_percentage, step, message } = latestNotification.progress;
+
+      setUploadProgress(Math.round(progress_percentage));
+
+      // Mapeia o step para uma mensagem user-friendly
+      const friendlyMessage = PROGRESS_MESSAGES[step] || message || 'Processando...';
+      setUploadStatusMessage(friendlyMessage);
+
+      // Se completou ou deu erro, finaliza o upload
+      if (step === 'completed' || step === 'error') {
+        setTimeout(() => {
+          setIsUploading(false);
+          setShowUploadForm(false);
+          setUploadProgress(0);
+          setUploadStatusMessage('Preparando upload...');
+
+          // Recarrega os dados da reunião
+          loadMeetings();
+        }, 2000); // Aguarda 2 segundos para mostrar conclusão
+      }
+    }
+  }, [notifications, isUploading, loadMeetings]);
 
   useEffect(() => {
     const loadMeetingData = async () => {
@@ -75,6 +131,15 @@ const MeetingDetail: React.FC = () => {
 
     loadMeetingData();
   }, [id, state.meetings, loadMeetings]);
+
+  // Check for upload hash in URL
+  useEffect(() => {
+    if (window.location.hash === '#upload' && meeting && !meeting.has_transcription) {
+      setShowUploadForm(true);
+      // Remove the hash from URL without reloading
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [meeting]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -132,6 +197,39 @@ const MeetingDetail: React.FC = () => {
 
   const handleBack = () => {
     navigate('/meetings');
+  };
+
+  const handleAudioUpload = async (audioFile: File) => {
+    if (!meeting) return;
+
+    setIsUploading(true);
+    setUploadProgress(5);
+    setUploadStatusMessage('Enviando arquivo...');
+
+    try {
+      await uploadAudioToExistingMeeting(
+        meeting.id.toString(),
+        audioFile,
+        (progress) => {
+          // O progresso HTTP do upload inicial
+          if (progress < 100) {
+            setUploadProgress(Math.max(5, Math.min(progress, 15))); // Limita upload a 15%
+            setUploadStatusMessage('Enviando arquivo...');
+          }
+        }
+      );
+
+      // Após o upload HTTP, o WebSocket assumirá o controle do progresso
+      setUploadProgress(15);
+      setUploadStatusMessage('Aguardando processamento...');
+
+    } catch (error) {
+      console.error('Erro ao fazer upload:', error);
+      setIsUploading(false);
+      setUploadProgress(0);
+      setUploadStatusMessage('Erro no upload');
+    }
+    // Note: não resetamos isUploading aqui, o WebSocket fará isso quando completar
   };
 
   if (isLoading) {
@@ -209,8 +307,8 @@ const MeetingDetail: React.FC = () => {
               </div>
               <Badge
                 className={`${statusInfo.color === 'emerald' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300' :
-                    statusInfo.color === 'amber' ? 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300' :
-                      'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                  statusInfo.color === 'amber' ? 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300' :
+                    'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300'
                   }`}
               >
                 <StatusIcon className="w-3 h-3 mr-1" />
@@ -353,7 +451,65 @@ const MeetingDetail: React.FC = () => {
         </div>
 
         {/* Transcription Content */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 space-y-6">
+          {/* Upload Audio Section */}
+          {(!meeting.has_transcription || meeting.transcriptions.length === 0) && (
+            <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 dark:from-amber-900/20 dark:to-orange-900/20 dark:border-amber-700/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                  <Upload className="w-5 h-5" />
+                  Adicionar Áudio para Transcrição
+                </CardTitle>
+                <CardDescription className="text-amber-700 dark:text-amber-300">
+                  Esta reunião ainda não possui áudio transcrito. Faça upload de um arquivo de áudio para gerar a transcrição automática.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!showUploadForm ? (
+                  <div className="text-center py-8">
+                    <div className="mx-auto h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center mb-4 dark:bg-amber-900/50">
+                      <Mic className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-amber-900 dark:text-amber-100 mb-2">
+                      Pronto para adicionar áudio?
+                    </h3>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mb-6">
+                      Carregue um arquivo de áudio e nossa IA fará a transcrição automática com análise inteligente.
+                    </p>
+                    <Button
+                      onClick={() => setShowUploadForm(true)}
+                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Adicionar Áudio
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <AudioUpload
+                      onUpload={handleAudioUpload}
+                      uploadProgress={uploadProgress}
+                      uploadStatusMessage={uploadStatusMessage}
+                      isUploading={isUploading}
+                      showUploadButton={true}
+                      title="Selecione o Arquivo de Áudio"
+                      description="Formatos suportados: MP3, WAV, M4A, MP4, WebM, OGG"
+                    />
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowUploadForm(false)}
+                        disabled={isUploading}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {meeting.transcriptions && meeting.transcriptions.length > 0 ? (
             <Card className="bg-white/70 backdrop-blur-sm border-slate-200/80 dark:bg-slate-900/70 dark:border-slate-700/80">
               <CardHeader>

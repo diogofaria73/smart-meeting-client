@@ -178,4 +178,65 @@ export interface TranscriptionProgress {
   status: 'queued' | 'processing' | 'completed' | 'failed';
   progress: number; // 0-100
   message?: string;
+}
+
+// 🚀 NOVOS TIPOS PARA SISTEMA ASSÍNCRONO
+
+export interface TranscriptionTaskResponse {
+  task_id: string;
+  meeting_id: number;
+  status: string;
+  filename: string;
+  websocket_url: string;
+  status_url: string;
+  result_url: string;
+  message: string;
+  enable_diarization: boolean;
+}
+
+export interface TranscriptionTaskStatus {
+  task_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  progress: {
+    percentage: number;
+    current_step: string;
+    message: string;
+    details?: string;
+    estimated_remaining_seconds?: number;
+  };
+  meeting_id: number;
+  timestamps: {
+    started_at: string;
+    updated_at: string;
+  };
+  error?: string;
+  is_running: boolean;
+}
+
+export interface WebSocketNotification {
+  event_type: 'transcription_started' | 'transcription_progress' | 'transcription_completed' | 'transcription_failed' | 'analysis_started' | 'analysis_completed' | 'analysis_failed' | 'system_notification';
+  meeting_id?: number;
+  task_id?: string;
+  timestamp: string;
+  message?: string;
+
+  // Dados específicos por tipo de evento
+  filename?: string;
+  transcription_id?: number;
+  speakers_count?: number;
+  error?: string;
+  progress?: {
+    status: string;
+    step: string;
+    progress_percentage: number;
+    message: string;
+    details?: string;
+    estimated_remaining_seconds?: number;
+  };
+  analysis?: {
+    transcription_id: number;
+    summary_length: number;
+    topics_count: number;
+    has_analysis: boolean;
+  };
 } 

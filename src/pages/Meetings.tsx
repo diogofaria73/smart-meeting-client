@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -17,7 +17,8 @@ import {
   Activity,
   CheckCircle,
   AlertCircle,
-  PlayCircle
+  PlayCircle,
+  Upload
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,6 +53,7 @@ import MeetingDetailsModal from '@/components/features/MeetingDetailsModal';
 import type { MeetingWithTranscriptions } from '@/types';
 
 const Meetings: React.FC = () => {
+  const navigate = useNavigate();
   const {
     state: { meetings, loading, error },
     loadMeetings
@@ -176,6 +178,10 @@ const Meetings: React.FC = () => {
     setCurrentPage(page);
     // Scroll to top quando mudar de página
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleUploadAudio = (meetingId: number) => {
+    navigate(`/meeting/${meetingId}#upload`);
   };
 
   const getVisiblePages = () => {
@@ -455,6 +461,18 @@ const Meetings: React.FC = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {/* Upload button for meetings without transcription */}
+                            {!meeting.has_transcription && meeting.transcriptions.length === 0 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUploadAudio(meeting.id)}
+                                className="h-8 px-3 text-amber-700 border-amber-200 hover:bg-amber-50 hover:text-amber-800"
+                              >
+                                <Upload className="h-4 w-4 mr-1" />
+                                Upload
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -490,6 +508,12 @@ const Meetings: React.FC = () => {
                                     Abrir página
                                   </Link>
                                 </DropdownMenuItem>
+                                {!meeting.has_transcription && meeting.transcriptions.length === 0 && (
+                                  <DropdownMenuItem onClick={() => handleUploadAudio(meeting.id)}>
+                                    <Upload className="mr-2 h-4 w-4" />
+                                    Adicionar áudio
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>

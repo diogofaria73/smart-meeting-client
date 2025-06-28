@@ -5,17 +5,21 @@ import {
   Calendar,
   Users,
   Mic,
-  Clock
+  Clock,
+  Upload,
+  Plus
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { MeetingWithTranscriptions } from '@/types';
 
 interface MeetingCardProps {
   meeting: MeetingWithTranscriptions;
+  onUploadClick?: (meetingId: number) => void;
 }
 
-const MeetingCard: React.FC<MeetingCardProps> = ({ meeting }) => {
+const MeetingCard: React.FC<MeetingCardProps> = ({ meeting, onUploadClick }) => {
   const getStatus = () => {
     if (meeting.has_transcription && meeting.transcriptions.length > 0) {
       return {
@@ -89,6 +93,25 @@ const MeetingCard: React.FC<MeetingCardProps> = ({ meeting }) => {
               </div>
             )}
           </div>
+
+          {/* Upload button for meetings without transcription */}
+          {!meeting.has_transcription && meeting.transcriptions.length === 0 && onUploadClick && (
+            <div className="pt-3 border-t border-muted">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-amber-700 border-amber-200 hover:bg-amber-50 hover:text-amber-800"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onUploadClick(meeting.id);
+                }}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Adicionar Áudio
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </Link>

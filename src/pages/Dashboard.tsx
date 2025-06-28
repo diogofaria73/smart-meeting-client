@@ -30,7 +30,7 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     loadMeetings();
     loadDashboardStats();
-  }, [loadMeetings, loadDashboardStats]);
+  }, []);
 
   const recentMeetings = meetings.slice(0, 3);
 

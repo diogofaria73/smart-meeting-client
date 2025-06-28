@@ -77,6 +77,7 @@ interface MeetingContextType {
   loadDashboardStats: (days?: number) => Promise<void>;
   createMeeting: (formData: { title: string; description?: string; participants: string[] }) => Promise<MeetingWithTranscriptions>;
   uploadAudioToMeeting: (meetingId: string, audioFile: File, onProgress?: (progress: number) => void) => Promise<void>;
+  uploadAudioToExistingMeeting: (meetingId: string, audioFile: File, onProgress?: (progress: number) => void) => Promise<void>;
   addMeeting: (meeting: MeetingWithTranscriptions) => void;
   updateMeeting: (meeting: MeetingWithTranscriptions) => void;
   deleteMeeting: (meetingId: number) => void;
@@ -222,8 +223,8 @@ export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) =>
     dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
-      // Usar o serviço de transcrições para enviar para /api/transcriptions/transcribe
-      await TranscriptionService.transcribeMeeting(meetingId, audioFile, onProgress);
+      // Usar o novo método assíncrono sem polling - o WebSocket cuidará do progresso
+      await TranscriptionService.transcribeMeetingAsync(meetingId, audioFile, true, onProgress);
 
       // Após o upload, atualizar a lista de reuniões para refletir as mudanças
       const updatedMeetings = await MeetingService.getAllMeetingsWithTranscriptions();
@@ -237,6 +238,29 @@ export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) =>
     }
   }, []);
 
+  const uploadAudioToExistingMeeting = useCallback(async (
+    meetingId: string,
+    audioFile: File,
+    onProgress?: (progress: number) => void
+  ): Promise<void> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
+
+    try {
+      // Usar o novo método assíncrono sem polling - o WebSocket cuidará do progresso  
+      await TranscriptionService.transcribeMeetingAsync(meetingId, audioFile, true, onProgress);
+
+      // Após o upload, recarregar as reuniões para obter o status atualizado
+      await loadMeetings();
+    } catch (error: any) {
+      const errorMessage = error.message || 'Erro ao fazer upload do áudio';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+      throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, [loadMeetings]);
+
   const value: MeetingContextType = {
     state,
     loadMeetings,
@@ -244,6 +268,7 @@ export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) =>
     loadDashboardStats,
     createMeeting,
     uploadAudioToMeeting,
+    uploadAudioToExistingMeeting,
     addMeeting,
     updateMeeting,
     deleteMeeting,
