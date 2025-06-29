@@ -239,4 +239,93 @@ export interface WebSocketNotification {
     topics_count: number;
     has_analysis: boolean;
   };
+}
+
+// 🚀 NOVO: Tipos completos para análise de transcrição
+export interface SpeakerSegment {
+  start_time: number;
+  end_time: number;
+  speaker_id: string;
+  text: string;
+  confidence: number;
+}
+
+export interface ParticipantInfo {
+  name: string;
+  speaker_id: string;
+  mentions: number;
+  speaking_time: number;
+  segments_count: number;
+  role?: string;
+  confidence: number;
+}
+
+export interface TopicInfo {
+  title: string;
+  summary: string;
+  keywords: string[];
+  importance: number;
+  duration_mentioned: string;
+}
+
+export interface ActionItem {
+  task: string;
+  assignee: string | null;
+  due_date: string;
+  priority: string;
+  confidence: number;
+}
+
+export interface KeyDecision {
+  decision: string;
+  rationale: string;
+  impact: string;
+  stakeholders: string[];
+  confidence: number;
+}
+
+export interface SentimentAnalysis {
+  overall: string;
+  topics: Record<string, string>;
+  confidence: number;
+}
+
+export interface MeetingAnalysisResult {
+  participants: ParticipantInfo[];
+  speaker_segments: SpeakerSegment[];
+  speakers_count: number;
+  main_topics: TopicInfo[];
+  action_items: ActionItem[];
+  key_decisions: KeyDecision[];
+  summary: string;
+  sentiment_analysis: SentimentAnalysis;
+  confidence_score: number;
+  processing_time?: number;
+}
+
+export interface ProcessingDetails {
+  transcription_time: number;
+  diarization_time: number;
+  total_time: number;
+  confidence: number;
+  audio_duration: number;
+}
+
+// 🔄 Tipo completo para transcrição com análise detalhada
+export interface DetailedTranscription {
+  id: number;
+  meeting_id: number;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  is_summarized: boolean;
+  is_analyzed: boolean;
+  summary?: string;
+  topics: string[];
+  analysis?: MeetingAnalysisResult;
+  speakers_count: number;
+  speaker_segments: SpeakerSegment[];
+  participants: ParticipantInfo[];
+  diarization_method?: string;
+  processing_details?: ProcessingDetails;
 } 

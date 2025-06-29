@@ -12,17 +12,19 @@ import {
   AlertCircle,
   Eye,
   Sparkles,
-  TrendingUp
+  TrendingUp,
+  BarChart3
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useMeeting } from '@/contexts/MeetingContext';
+import StatsChart from '@/components/features/StatsChart';
 
 const Dashboard: React.FC = () => {
   const {
-    state: { meetings, loading, error },
+    state: { meetings, dashboardStats, loading, error },
     loadMeetings,
     loadDashboardStats
   } = useMeeting();
@@ -71,7 +73,12 @@ const Dashboard: React.FC = () => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
   };
 
-  const stats = {
+  // Usar dashboardStats se disponível, senão calcular localmente
+  const stats = dashboardStats ? {
+    total: dashboardStats.total_meetings,
+    completed: dashboardStats.completed_transcriptions,
+    processing: dashboardStats.processing_transcriptions
+  } : {
     total: meetings.length,
     completed: meetings.filter(m => m.has_transcription && m.transcriptions?.length > 0).length,
     processing: meetings.filter(m => m.has_transcription && (!m.transcriptions || m.transcriptions.length === 0)).length
@@ -241,6 +248,30 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Gráfico Temporal */}
+      {dashboardStats && dashboardStats.daily_stats && dashboardStats.daily_stats.length > 0 && (
+        <Card className="bg-white/70 backdrop-blur-sm border-slate-200/80 dark:bg-slate-900/70 dark:border-slate-700/80">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-green-600 flex items-center justify-center shadow-lg">
+                <BarChart3 className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-bold">
+                  Atividade Temporal
+                </CardTitle>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Reuniões criadas e transcritas por dia
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <StatsChart data={dashboardStats.daily_stats} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

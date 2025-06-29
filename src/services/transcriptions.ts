@@ -1,5 +1,5 @@
 import { api, uploadApi, apiCall, handleApiError } from './api';
-import type { Transcription, TranscriptionProgress, ApiError } from '../types';
+import type { Transcription, TranscriptionProgress, ApiError, DetailedTranscription } from '../types';
 
 export class TranscriptionService {
   // 🚀 NOVO: Iniciar transcrição ASSÍNCRONA de uma reunião
@@ -152,7 +152,18 @@ export class TranscriptionService {
     }
   }
 
-  // Buscar transcrição de uma reunião
+  // 📊 Buscar transcrição completa de uma reunião com análise detalhada
+  static async getDetailedTranscription(meetingId: string): Promise<DetailedTranscription> {
+    try {
+      return await apiCall(() =>
+        api.get<DetailedTranscription>(`/api/transcriptions/${meetingId}`)
+      );
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
+
+  // Buscar transcrição de uma reunião (compatibilidade)
   static async getTranscription(meetingId: string): Promise<Transcription> {
     try {
       return await apiCall(() =>
@@ -168,6 +179,60 @@ export class TranscriptionService {
     try {
       return await apiCall(() =>
         api.post<Transcription>(`/api/transcriptions/summary/${meetingId}`)
+      );
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
+
+  // 🚀 NOVO: Gerar resumo inteligente ASSÍNCRONO (otimizado)
+  static async generateSummaryAsync(meetingId: string): Promise<{
+    task_id: string;
+    meeting_id: number;
+    status: string;
+    message: string;
+    estimated_duration: string;
+    websocket_url: string;
+    status_url: string;
+    result_url: string;
+  }> {
+    try {
+      return await apiCall(() =>
+        api.post<{
+          task_id: string;
+          meeting_id: number;
+          status: string;
+          message: string;
+          estimated_duration: string;
+          websocket_url: string;
+          status_url: string;
+          result_url: string;
+        }>(`/api/transcriptions/summary/${meetingId}/async`)
+      );
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
+
+  // 🔍 NOVO: Verificar status de task de análise
+  static async getAnalysisTaskStatus(taskId: string): Promise<{
+    task_id: string;
+    status: string;
+    progress_percentage: number;
+    message: string;
+    step: string;
+    estimated_remaining_seconds?: number;
+  }> {
+    try {
+      return await apiCall(() =>
+        api.get<{
+          task_id: string;
+          status: string;
+          progress_percentage: number;
+          message: string;
+          step: string;
+          estimated_remaining_seconds?: number;
+        }>(`/api/transcriptions/status/${taskId}`)
       );
     } catch (error) {
       throw handleApiError(error);

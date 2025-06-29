@@ -5,16 +5,10 @@ import {
   FileText,
   Mic,
   Plus,
-  Settings,
-  HelpCircle,
-  BarChart3,
-  User,
   Menu,
   ChevronLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -52,13 +46,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       href: '/meetings',
       icon: FileText,
       paths: ['/meetings']
-    },
-    {
-      id: 'analytics',
-      name: 'Análises',
-      href: '/analytics',
-      icon: BarChart3,
-      paths: ['/analytics']
     }
   ];
 
@@ -208,95 +195,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               );
             })}
           </nav>
-
-          {/* Bottom Actions */}
-          <div className={cn("border-t border-slate-200/80 p-4 dark:border-slate-700/80 transition-all duration-300", !isExpanded && "px-2")}>
-            <div className="space-y-2">
-              {isExpanded ? (
-                <>
-                  <Button variant="ghost" className="w-full justify-start h-10 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:scale-105 transition-all" asChild>
-                    <Link to="/settings">
-                      <Settings className="mr-3 h-4 w-4" />
-                      Configurações
-                    </Link>
-                  </Button>
-                  <Button variant="ghost" className="w-full justify-start h-10 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:scale-105 transition-all" asChild>
-                    <Link to="/help">
-                      <HelpCircle className="mr-3 h-4 w-4" />
-                      Ajuda
-                    </Link>
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <TooltipProvider>
-                    <Tooltip delayDuration={100}>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" className="w-12 h-10 p-0 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:scale-105 transition-all" asChild>
-                          <Link to="/settings">
-                            <Settings className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="ml-2">
-                        <p>Configurações</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-
-                  <TooltipProvider>
-                    <Tooltip delayDuration={100}>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" className="w-12 h-10 p-0 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:scale-105 transition-all" asChild>
-                          <Link to="/help">
-                            <HelpCircle className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="ml-2">
-                        <p>Ajuda</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </>
-              )}
-            </div>
-
-            <Separator className="my-4" />
-
-            {/* User Info */}
-            {isExpanded ? (
-              <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-slate-100 to-slate-50 p-4 shadow-sm dark:from-slate-800 dark:to-slate-700 transition-all duration-300">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-md">
-                  <User className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-900 truncate dark:text-white">Usuário</div>
-                  <Badge variant="outline" className="text-xs mt-1 bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-700 border-emerald-200 dark:from-emerald-900/20 dark:to-green-900/20 dark:text-emerald-300 dark:border-emerald-700">
-                    Plano Pro
-                  </Badge>
-                </div>
-              </div>
-            ) : (
-              <TooltipProvider>
-                <Tooltip delayDuration={100}>
-                  <TooltipTrigger asChild>
-                    <div className="flex justify-center">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-md hover:scale-110 transition-all duration-200 cursor-pointer">
-                        <User className="h-6 w-6" />
-                      </div>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="ml-2">
-                    <div>
-                      <p className="font-semibold">Usuário</p>
-                      <p className="text-xs text-emerald-600">Plano Pro</p>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-          </div>
         </div>
       </aside>
 

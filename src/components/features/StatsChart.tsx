@@ -24,11 +24,20 @@ const StatsChart: React.FC<StatsChartProps> = ({ data }) => {
   }));
 
   return (
-    <div className="card-clean p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-subtitle">Atividade Recente</h3>
-        <div className="text-sm text-gray-500 dark:text-gray-400">
-          {filteredData.length > 0 ? 'Dias com atividade' : 'Últimos 7 dias'}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-slate-500 dark:text-slate-400">
+          {filteredData.length > 0 ? `${filteredData.length} dias com atividade` : 'Últimos 7 dias'}
+        </div>
+        <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+            <span>Reuniões</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            <span>Transcrições</span>
+          </div>
         </div>
       </div>
       <div className="h-80">
@@ -49,18 +58,23 @@ const StatsChart: React.FC<StatsChartProps> = ({ data }) => {
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#ffffff',
-                border: '1px solid #e5e7eb',
+                backgroundColor: 'var(--tooltip-bg, #ffffff)',
+                border: '1px solid var(--tooltip-border, #e5e7eb)',
                 borderRadius: '8px',
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                color: '#374151'
+                color: 'var(--tooltip-text, #374151)'
               }}
-              labelStyle={{ color: '#374151', fontWeight: 'bold' }}
+              labelStyle={{ color: 'var(--tooltip-text, #374151)', fontWeight: 'bold' }}
               formatter={(value, name) => [
                 value,
                 name === 'reunioes' ? 'Reuniões' : 'Transcrições'
               ]}
               labelFormatter={(label) => `Data: ${label}`}
+              wrapperStyle={{
+                '--tooltip-bg': 'rgb(255, 255, 255)',
+                '--tooltip-border': 'rgb(229, 231, 235)',
+                '--tooltip-text': 'rgb(55, 65, 81)'
+              } as React.CSSProperties}
             />
             <Legend
               wrapperStyle={{
@@ -90,15 +104,23 @@ const StatsChart: React.FC<StatsChartProps> = ({ data }) => {
         </ResponsiveContainer>
       </div>
 
-      {/* Resumo rápido */}
-      <div className="mt-4 flex justify-center space-x-8 text-sm text-gray-600 dark:text-gray-400">
+      {/* Resumo rápido com estatísticas do período */}
+      <div className="mt-4 flex justify-center space-x-8 text-sm text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/50 rounded-lg p-3">
         <div className="flex items-center space-x-2">
           <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-          <span>Total: {chartData.reduce((sum, item) => sum + item.reunioes, 0)} reuniões</span>
+          <span>
+            <span className="font-semibold text-slate-900 dark:text-white">
+              {chartData.reduce((sum, item) => sum + item.reunioes, 0)}
+            </span> reuniões no período
+          </span>
         </div>
         <div className="flex items-center space-x-2">
           <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-          <span>Total: {chartData.reduce((sum, item) => sum + item.transcricoes, 0)} transcrições</span>
+          <span>
+            <span className="font-semibold text-slate-900 dark:text-white">
+              {chartData.reduce((sum, item) => sum + item.transcricoes, 0)}
+            </span> transcrições no período
+          </span>
         </div>
       </div>
     </div>

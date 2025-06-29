@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMeeting } from '@/contexts/MeetingContext';
 import { useWebSocketNotifications } from '@/services/websocket';
+import { TranscriptionService } from '@/services/transcriptions';
 import {
   ArrowLeft,
   Calendar,
   Users,
   FileText,
   Download,
-  Play,
   CheckCircle,
   Clock,
   AlertCircle,
@@ -18,13 +18,18 @@ import {
   BookOpen,
   Hash,
   Copy,
-  ExternalLink,
-  Eye,
   User,
   Timer,
   Activity,
   Upload,
-  Plus
+  Plus,
+  TrendingUp,
+  Brain,
+  Target,
+  BarChart3,
+  Smile,
+  Meh,
+  Frown
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,7 +37,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AudioUpload from '@/components/features/AudioUpload';
-import type { MeetingWithTranscriptions } from '@/types';
+import type { MeetingWithTranscriptions, DetailedTranscription, SentimentAnalysis, TopicInfo } from '@/types';
 
 // Mapeamento dos steps do backend para mensagens user-friendly
 const PROGRESS_MESSAGES: Record<string, string> = {
@@ -50,8 +55,9 @@ const PROGRESS_MESSAGES: Record<string, string> = {
 const MeetingDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { state, loadMeetings, uploadAudioToExistingMeeting } = useMeeting();
+  const { state, loadMeetings, uploadAudioToExistingMeeting, generateSummaryAsync } = useMeeting();
   const [meeting, setMeeting] = useState<MeetingWithTranscriptions | null>(null);
+  const [detailedTranscription, setDetailedTranscription] = useState<DetailedTranscription | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTranscription, setSelectedTranscription] = useState<number>(0);
   const [showUploadForm, setShowUploadForm] = useState(false);
@@ -59,10 +65,43 @@ const MeetingDetail: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatusMessage, setUploadStatusMessage] = useState('Preparando upload...');
 
+  // 🚀 NOVO: Estado para análise assíncrona
+  const [isAnalyzingAsync, setIsAnalyzingAsync] = useState(false);
+
   // WebSocket para receber atualizações de progresso
   const { notifications, isConnected } = useWebSocketNotifications(
     meeting?.id ? Number(meeting.id) : undefined
   );
+
+  // 📊 Carregar dados completos da transcrição
+  const loadDetailedTranscription = async (meetingId: string) => {
+    try {
+      const detailed = await TranscriptionService.getDetailedTranscription(meetingId);
+      setDetailedTranscription(detailed);
+    } catch (error) {
+      console.error('Erro ao carregar transcrição detalhada:', error);
+      setDetailedTranscription(null);
+    }
+  };
+
+  // Função para formatar tempo de áudio
+  const formatDuration = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Função para obter ícone de sentimento
+  const getSentimentIcon = (sentiment: string) => {
+    switch (sentiment?.toLowerCase()) {
+      case 'positivo':
+        return { icon: Smile, color: 'text-green-500' };
+      case 'negativo':
+        return { icon: Frown, color: 'text-red-500' };
+      default:
+        return { icon: Meh, color: 'text-yellow-500' };
+    }
+  };
 
   // Processa notificações do WebSocket
   useEffect(() => {
@@ -104,7 +143,7 @@ const MeetingDetail: React.FC = () => {
       // Primeiro, tenta encontrar nos dados já carregados
       if (state.meetings.length > 0) {
         const foundMeeting = state.meetings.find(
-          m => m.id.toString() === id
+          (m: MeetingWithTranscriptions) => m.id.toString() === id
         );
         if (foundMeeting) {
           setMeeting(foundMeeting);
@@ -118,7 +157,7 @@ const MeetingDetail: React.FC = () => {
         await loadMeetings();
         // Após recarregar, tenta encontrar novamente
         const foundMeeting = state.meetings.find(
-          m => m.id.toString() === id
+          (m: MeetingWithTranscriptions) => m.id.toString() === id
         );
         setMeeting(foundMeeting || null);
       } catch (error) {
@@ -131,6 +170,13 @@ const MeetingDetail: React.FC = () => {
 
     loadMeetingData();
   }, [id, state.meetings, loadMeetings]);
+
+  // 📊 Carregar dados detalhados quando reunião tem transcrição
+  useEffect(() => {
+    if (meeting && meeting.has_transcription && meeting.transcriptions.length > 0) {
+      loadDetailedTranscription(meeting.id.toString());
+    }
+  }, [meeting?.has_transcription, meeting?.transcriptions.length]);
 
   // Check for upload hash in URL
   useEffect(() => {
@@ -230,6 +276,28 @@ const MeetingDetail: React.FC = () => {
       setUploadStatusMessage('Erro no upload');
     }
     // Note: não resetamos isUploading aqui, o WebSocket fará isso quando completar
+  };
+
+  // 🚀 Função para teste da análise assíncrona otimizada
+  const handleTestAsyncAnalysis = async () => {
+    if (!meeting || isAnalyzingAsync) return;
+
+    setIsAnalyzingAsync(true);
+
+    try {
+      const response = await generateSummaryAsync(meeting.id.toString());
+      console.log('✅ Análise assíncrona iniciada:', response);
+
+      setTimeout(() => {
+        setIsAnalyzingAsync(false);
+        alert('Análise assíncrona iniciada! Verifique o console para detalhes.');
+      }, 2000);
+
+    } catch (error) {
+      console.error('Erro ao iniciar análise assíncrona:', error);
+      setIsAnalyzingAsync(false);
+      alert('Erro ao iniciar análise assíncrona');
+    }
   };
 
   if (isLoading) {
@@ -654,6 +722,200 @@ const MeetingDetail: React.FC = () => {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {/* 📊 NOVA SEÇÃO: Análise Detalhada */}
+          {detailedTranscription && detailedTranscription.is_analyzed && (
+            <div className="space-y-6">
+              {/* Estatísticas Gerais */}
+              <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200 dark:from-purple-900/20 dark:to-indigo-900/20 dark:border-purple-700/50">
+                <CardHeader>
+                  <CardTitle className="text-xl flex items-center gap-2 text-purple-900 dark:text-purple-100">
+                    <BarChart3 className="w-5 h-5" />
+                    Estatísticas da Reunião
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {/* Speakers Count */}
+                    <div className="text-center p-4 bg-white/70 dark:bg-slate-800/70 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                        {detailedTranscription.speakers_count}
+                      </div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">Participantes</div>
+                    </div>
+
+                    {/* Total Duration */}
+                    {detailedTranscription.processing_details && (
+                      <div className="text-center p-4 bg-white/70 dark:bg-slate-800/70 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                          {formatDuration(detailedTranscription.processing_details.audio_duration)}
+                        </div>
+                        <div className="text-sm text-slate-600 dark:text-slate-400">Duração</div>
+                      </div>
+                    )}
+
+                    {/* Confidence Score */}
+                    {detailedTranscription.analysis?.confidence_score && (
+                      <div className="text-center p-4 bg-white/70 dark:bg-slate-800/70 rounded-lg">
+                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                          {Math.round(detailedTranscription.analysis.confidence_score * 100)}%
+                        </div>
+                        <div className="text-sm text-slate-600 dark:text-slate-400">Confiança</div>
+                      </div>
+                    )}
+
+                    {/* Topics Count */}
+                    <div className="text-center p-4 bg-white/70 dark:bg-slate-800/70 rounded-lg">
+                      <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                        {detailedTranscription.analysis?.main_topics?.length || detailedTranscription.topics.length}
+                      </div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">Tópicos</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Análise de Sentimento */}
+              {detailedTranscription.analysis?.sentiment_analysis && (
+                <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 dark:from-green-900/20 dark:to-emerald-900/20 dark:border-green-700/50">
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-2 text-green-900 dark:text-green-100">
+                      <Brain className="w-5 h-5" />
+                      Análise de Sentimento
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Sentimento Geral */}
+                      <div className="flex items-center justify-between p-4 bg-white/70 dark:bg-slate-800/70 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          {(() => {
+                            const sentimentInfo = getSentimentIcon(detailedTranscription.analysis.sentiment_analysis.overall);
+                            const SentimentIcon = sentimentInfo.icon;
+                            return (
+                              <>
+                                <SentimentIcon className={`w-6 h-6 ${sentimentInfo.color}`} />
+                                <div>
+                                  <div className="font-medium text-slate-900 dark:text-slate-100">
+                                    Sentimento Geral
+                                  </div>
+                                  <div className="text-sm text-slate-600 dark:text-slate-400 capitalize">
+                                    {detailedTranscription.analysis.sentiment_analysis.overall}
+                                  </div>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                        <div className="text-sm text-slate-500 dark:text-slate-400">
+                          {Math.round(detailedTranscription.analysis.sentiment_analysis.confidence * 100)}% confiança
+                        </div>
+                      </div>
+
+                      {/* Sentimento por Tópico */}
+                      {Object.keys(detailedTranscription.analysis.sentiment_analysis.topics).length > 0 && (
+                        <div>
+                          <h5 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Por Tópico:</h5>
+                          <div className="space-y-2">
+                            {Object.entries(detailedTranscription.analysis.sentiment_analysis.topics).map(([topic, sentiment]) => {
+                              const sentimentInfo = getSentimentIcon(sentiment);
+                              const SentimentIcon = sentimentInfo.icon;
+                              return (
+                                <div key={topic} className="flex items-center justify-between p-2 bg-white/50 dark:bg-slate-800/50 rounded">
+                                  <span className="text-sm text-slate-700 dark:text-slate-300 truncate flex-1">{topic}</span>
+                                  <div className="flex items-center gap-2">
+                                    <SentimentIcon className={`w-4 h-4 ${sentimentInfo.color}`} />
+                                    <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">{sentiment}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Tópicos Principais */}
+              {detailedTranscription.analysis?.main_topics && detailedTranscription.analysis.main_topics.length > 0 && (
+                <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 dark:from-amber-900/20 dark:to-orange-900/20 dark:border-amber-700/50">
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                      <Target className="w-5 h-5" />
+                      Tópicos Principais
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {detailedTranscription.analysis.main_topics.map((topic, index) => (
+                        <div key={index} className="p-4 bg-white/70 dark:bg-slate-800/70 rounded-lg">
+                          <div className="flex items-start justify-between mb-2">
+                            <h5 className="font-medium text-slate-900 dark:text-slate-100">{topic.title}</h5>
+                            <div className="flex items-center gap-2">
+                              <div className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-2 py-1 rounded">
+                                {Math.round(topic.importance * 100)}% relevância
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">{topic.summary}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {topic.keywords.map((keyword, keyIndex) => (
+                              <Badge key={keyIndex} variant="outline" className="text-xs">
+                                {keyword}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Itens de Ação */}
+              {detailedTranscription.analysis?.action_items && detailedTranscription.analysis.action_items.length > 0 && (
+                <Card className="bg-gradient-to-br from-rose-50 to-pink-50 border-rose-200 dark:from-rose-900/20 dark:to-pink-900/20 dark:border-rose-700/50">
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-2 text-rose-900 dark:text-rose-100">
+                      <TrendingUp className="w-5 h-5" />
+                      Itens de Ação
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {detailedTranscription.analysis.action_items.map((action, index) => (
+                        <div key={index} className="p-4 bg-white/70 dark:bg-slate-800/70 rounded-lg border-l-4 border-rose-400">
+                          <div className="flex items-start justify-between mb-2">
+                            <h5 className="font-medium text-slate-900 dark:text-slate-100">{action.task}</h5>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${action.priority === 'alta' ? 'border-red-300 text-red-700 dark:border-red-700 dark:text-red-300' :
+                                action.priority === 'média' ? 'border-yellow-300 text-yellow-700 dark:border-yellow-700 dark:text-yellow-300' :
+                                  'border-green-300 text-green-700 dark:border-green-700 dark:text-green-300'
+                                }`}
+                            >
+                              {action.priority}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
+                            {action.assignee && (
+                              <span>👤 {action.assignee}</span>
+                            )}
+                            {action.due_date && (
+                              <span>📅 {action.due_date}</span>
+                            )}
+                            <span>🎯 {Math.round(action.confidence * 100)}% confiança</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
         </div>
       </div>

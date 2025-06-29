@@ -74,8 +74,8 @@ interface MeetingContextType {
   state: MeetingState;
   loadMeetings: () => Promise<void>;
   loadMeetingsPaginated: (page: number, pageSize: number) => Promise<void>;
-  loadDashboardStats: (days?: number) => Promise<void>;
-  createMeeting: (formData: { title: string; description?: string; participants: string[] }) => Promise<MeetingWithTranscriptions>;
+  loadDashboardStats: () => Promise<void>;
+  createMeeting: (meetingData: Omit<Meeting, 'id' | 'created_at' | 'updated_at'>) => Promise<Meeting>;
   uploadAudioToMeeting: (meetingId: string, audioFile: File, onProgress?: (progress: number) => void) => Promise<void>;
   uploadAudioToExistingMeeting: (meetingId: string, audioFile: File, onProgress?: (progress: number) => void) => Promise<void>;
   addMeeting: (meeting: MeetingWithTranscriptions) => void;
@@ -83,6 +83,19 @@ interface MeetingContextType {
   deleteMeeting: (meetingId: number) => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;
+  generateSummary: (meetingId: string) => Promise<void>;
+  generateSummaryAsync: (meetingId: string) => Promise<{
+    taskId: string;
+    websocketUrl: string;
+  }>;
+  getAnalysisStatus: (taskId: string) => Promise<{
+    task_id: string;
+    status: string;
+    progress_percentage: number;
+    message: string;
+    step: string;
+    estimated_remaining_seconds?: number;
+  }>;
 }
 
 const MeetingContext = createContext<MeetingContextType | undefined>(undefined);
@@ -134,12 +147,12 @@ export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) =>
     }
   }, []);
 
-  const loadDashboardStats = useCallback(async (days: number = 30): Promise<void> => {
+  const loadDashboardStats = useCallback(async (): Promise<void> => {
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
-      const stats = await MeetingService.getDashboardStats(days);
+      const stats = await MeetingService.getDashboardStats(30);
       dispatch({ type: 'SET_DASHBOARD_STATS', payload: stats });
     } catch (error: any) {
       const errorMessage = error.message || 'Erro ao carregar estatísticas';
@@ -174,7 +187,7 @@ export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) =>
     title: string;
     description?: string;
     participants: string[];
-  }): Promise<MeetingWithTranscriptions> => {
+  }): Promise<Meeting> => {
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
 
@@ -204,7 +217,7 @@ export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) =>
       };
 
       dispatch({ type: 'ADD_MEETING', payload: newMeeting });
-      return newMeeting;
+      return createdMeeting;
     } catch (error: any) {
       const errorMessage = error.message || 'Erro ao criar reunião';
       dispatch({ type: 'SET_ERROR', payload: errorMessage });
@@ -261,6 +274,66 @@ export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) =>
     }
   }, [loadMeetings]);
 
+  const generateSummary = useCallback(async (meetingId: string): Promise<void> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
+
+    try {
+      const summary = await TranscriptionService.generateSummary(meetingId);
+
+      // Recarrega todas as reuniões para garantir dados consistentes
+      const updatedMeetings = await MeetingService.getAllMeetingsWithTranscriptions();
+      dispatch({ type: 'SET_MEETINGS', payload: updatedMeetings });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar resumo';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+      throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, []);
+
+  // 🚀 NOVO: Gerar resumo assíncrono com progresso via WebSocket
+  const generateSummaryAsync = useCallback(async (meetingId: string): Promise<{
+    taskId: string;
+    websocketUrl: string;
+  }> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
+
+    try {
+      const response = await TranscriptionService.generateSummaryAsync(meetingId);
+
+      return {
+        taskId: response.task_id,
+        websocketUrl: response.websocket_url
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao iniciar análise';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+      throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, []);
+
+  // 🔍 NOVO: Verificar status de análise
+  const getAnalysisStatus = useCallback(async (taskId: string): Promise<{
+    task_id: string;
+    status: string;
+    progress_percentage: number;
+    message: string;
+    step: string;
+    estimated_remaining_seconds?: number;
+  }> => {
+    try {
+      return await TranscriptionService.getAnalysisTaskStatus(taskId);
+    } catch (error) {
+      console.error('Erro ao verificar status da análise:', error);
+      throw error;
+    }
+  }, []);
+
   const value: MeetingContextType = {
     state,
     loadMeetings,
@@ -274,6 +347,9 @@ export const MeetingProvider: React.FC<MeetingProviderProps> = ({ children }) =>
     deleteMeeting,
     setError,
     setLoading,
+    generateSummary,
+    generateSummaryAsync,
+    getAnalysisStatus,
   };
 
   return (
